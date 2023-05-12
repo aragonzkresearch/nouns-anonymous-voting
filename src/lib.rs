@@ -1,139 +1,25 @@
 #![allow(non_snake_case)]
 
-
 extern crate core;
 
-mod vote_proof;
-mod snark_repr;
+mod preprover;
+mod voter;
+mod utils;
+mod election;
+mod serialisation;
 
-use std::fs;
-use std::ops::Mul;
-use ark_ff::One;
-use ark_std::rand::Rng;
-use ark_std::UniformRand;
 
+/// Define the reexported types from the arkworks libraries to be used in this crate
 pub(crate) use ark_bn254::{G1Projective as BN254_G1, Fr as BN254_Fr};
 pub(crate) use babyjubjub_ark::{Point as BBJJ_G1, Signature, Fr as BBJJ_Fr};
 
+use crate::election::{ElectionParams, VoteChoice};
+use crate::serialisation::toml::TomlSerializable;
+use crate::utils::Mock;
+use crate::voter::Voter;
 
-use ark_ec::{Group};
-use babyjubjub_ark::{Point as PublicBBJJKey, PrivateKey as PrivateBBJJKey};
-use toml::Value;
-use crate::snark_repr::TomlSerialisable;
-
-// Mock trait is used to generate mock data for testing
-pub trait Mock {
-    fn mock<R: Rng>(rng: &mut R) -> Self;
-}
-
-pub struct Voter {
-    RK_i: PrivateBBJJKey, // Secret Registry Key of voter i
-}
-
-#[derive(Clone, Debug)]
-pub struct ElectionIdentifier {
-    chain_id: BN254_Fr,
-    process_id: BN254_Fr,
-    contract_addr: BN254_Fr
-}
-
-impl Into<Vec<BN254_Fr>> for ElectionIdentifier {
-    fn into(self) -> Vec<BN254_Fr> {
-        vec![self.chain_id, self.process_id, self.contract_addr]
-    }
-}
-
-impl TomlSerialisable for ElectionIdentifier {
-    fn toml(self) -> Value {
-        let mut map = toml::map::Map::new();
-        map.insert("chain_id".to_string(), self.chain_id.toml());
-        map.insert("process_id".to_string(), self.chain_id.toml());
-        map.insert("contract_addr".to_string(), self.chain_id.toml());
-        Value::Table(map)
-    }
-}
-
-impl Mock for ElectionIdentifier {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        ElectionIdentifier {
-            chain_id: BN254_Fr::from(0u8),
-            process_id: BN254_Fr::from(4u8),
-            contract_addr: BN254_Fr::rand(rng),
-        }
-    }
-}
-
-
-
-pub struct TLockParams {
-    PK_t: BN254_G1, // The TLCS public encryption key for time T
-    // PK: , // PK_t, TLCS public encryption key
-    // space for other TLock parameters
-}
-
-impl Mock for TLockParams {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        TLockParams {
-            PK_t: BN254_G1::rand(rng),
-        }
-    }
-}
-
-pub struct ElectionParams {
-    identifier: ElectionIdentifier,
-    tlock: TLockParams,
-}
-
-impl Mock for ElectionParams {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        ElectionParams {
-            identifier: ElectionIdentifier::mock(rng),
-            tlock: TLockParams::mock(rng),
-        }
-    }
-}
-
-
-#[derive(Debug, Clone)]
-pub enum VoteChoice {
-    Yes,
-    No,
-    Abstain,
-}
-
-
-
-// Implement conversion trait for Vote to F
-impl Into<BN254_Fr> for VoteChoice {
-
-    fn into(self) -> BN254_Fr {
-        match self {
-            VoteChoice::Yes => BN254_Fr::from(0u8),
-            VoteChoice::No => BN254_Fr::from(1u8),
-            VoteChoice::Abstain => BN254_Fr::from(2u8),
-        }
-    }
-}
-
-
-impl Voter {
-    pub fn new(RK_i: Vec<u8>) -> Self {
-        let RK_i = PrivateBBJJKey::import(RK_i).unwrap();
-        Voter {
-            RK_i,
-        }
-    }
-}
-
-impl Mock for Voter {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        // Generate a random Vec of bytes length 32
-        let mut RK_i = vec![0u8; 32];
-        rng.fill_bytes(&mut RK_i);
-        Voter::new(RK_i)
-    }
-}
-
+use std::fs;
+use std::ops::Add;
 
 pub fn run() -> Result<(), String> {
 
@@ -149,8 +35,11 @@ pub fn run() -> Result<(), String> {
     // Debug print the vote package
     println!("vote_package: {:?}", vote_package);
 
-    let toml_string = vote_package.toml().to_string();
-    fs::write("Prover.toml", toml_string).map_err(|e| e.to_string())?;
+    let toml_private_string = toml::to_string_pretty(&vote_package.private_input.toml()).map_err(|e| format!("Failed to generate toml for private_input: {}", e.to_string()))?;
+    let toml_public_string = toml::to_string_pretty(&vote_package.public_input.toml()).map_err(|e| format!("Failed to generate toml for public_input: {}", e.to_string()))?;
+
+    fs::write("Prover.toml", toml_private_string.add(&*toml_public_string.clone())).map_err(|e| e.to_string())?;
+    fs::write("Verifier.toml", toml_public_string).map_err(|e| e.to_string())?;
 
     Ok(())
 }
