@@ -135,7 +135,7 @@ impl Mock for Voter {
 }
 
 
-pub fn run() {
+pub fn run() -> Result<(), String> {
 
     let mut rng = ark_std::test_rng();
     let voter = Voter::mock(&mut rng);
@@ -144,11 +144,13 @@ pub fn run() {
     let nft_id = BN254_Fr::from(0u8);
     let vote_choice = VoteChoice::Yes;
 
-    let vote_package = voter.package_vote_for_proving(&mut rng, &election_params, &vote_choice, &nft_id);
+    let vote_package = voter.package_vote_for_proving(&mut rng, &election_params, &vote_choice, &nft_id)?;
 
     // Debug print the vote package
     println!("vote_package: {:?}", vote_package);
 
-    let toml_string = vote_package.unwrap().toml().to_string();
-    fs::write("Prover.toml", toml_string).expect("Could not write to file!");
+    let toml_string = vote_package.toml().to_string();
+    fs::write("Prover.toml", toml_string).map_err(|e| e.to_string())?;
+
+    Ok(())
 }

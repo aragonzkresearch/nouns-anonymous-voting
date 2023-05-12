@@ -13,7 +13,7 @@ use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use babyjubjub_ark::Signature;
 use poseidon_ark::Poseidon;
-use toml::Value;
+use toml::{Table, Value};
 use crate::{concat_vec, ElectionIdentifier, ElectionParams, BN254_G1, VoteChoice, Voter, BN254_Fr, BBJJ_Fr, BBJJ_G1};
 use crate::snark_repr::{TomlSerialisable, Wrapper};
 

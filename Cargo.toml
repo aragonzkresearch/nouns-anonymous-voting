@@ -15,8 +15,8 @@ ark-ed-on-bn254 = { version = "0.4.0" }
 ark-std = { version = "0.4.0" }
 
 # THESE DEPENDENCIES ARE EXPERIMENTAL DONE BY ARNAU
-poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark" }
-babyjubjub-ark = { git="https://github.com/arnaucube/babyjubjub-ark" }
+poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark"}
+babyjubjub-ark = { git="https://github.com/arnaucube/babyjubjub-ark", features = ["aarch64"] }
 
 # OTHER DEPENDENCIES
 hex = "^0.4.0"

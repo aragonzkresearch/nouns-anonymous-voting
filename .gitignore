@@ -2,3 +2,4 @@
 /Cargo.lock
 /circuit/Prover.toml
 /circuit/Verifier.toml
+/Prover.toml
