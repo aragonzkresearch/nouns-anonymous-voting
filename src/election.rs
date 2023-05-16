@@ -1,7 +1,7 @@
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use crate::utils::Mock;
-use crate::{BN254_G1, BN254_Fr};
+use crate::{BN254_Fr, BBJJ_G1, BBJJ_Pr_Key};
 
 /// Represents the Election Identifiers that uniquely identify an election
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ impl Mock for ElectionIdentifier {
 
 /// Represents the Time Lock Service Parameters
 pub struct TLockParams {
-    pub(crate) PK_t: BN254_G1, // The TLCS public encryption key for time T
+    pub(crate) PK_t: BBJJ_G1, // The TLCS public encryption key for time T
     // PK: , // PK_t, TLCS public encryption key
     // space for other TLock parameters
 }
@@ -33,7 +33,7 @@ pub struct TLockParams {
 impl Mock for TLockParams {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         TLockParams {
-            PK_t: BN254_G1::rand(rng),
+            PK_t: BBJJ_Pr_Key::mock(rng).public()
         }
     }
 }
@@ -72,5 +72,13 @@ impl Mock for VoteChoice {
             2 => VoteChoice::Abstain,
             _ => panic!("Invalid vote choice"),
         }
+    }
+}
+
+impl Mock for BBJJ_Pr_Key {
+    fn mock<R: Rng>(rng: &mut R) -> Self {
+        let mut RK_i = vec![0u8; 32];
+        rng.fill_bytes(&mut RK_i);
+        BBJJ_Pr_Key::import(RK_i).expect("Could not generate a mock BBJJ Private Key.")
     }
 }

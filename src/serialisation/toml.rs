@@ -2,7 +2,7 @@ use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
 use toml::Value;
 use toml::value::Array;
-use crate::{BN254_Fr, BBJJ_Fr, BN254_G1, BBJJ_G1, concat_vec};
+use crate::{BN254_Fr, BBJJ_G1};
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::serialisation::Wrapper;
 use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
@@ -79,7 +79,7 @@ impl TomlSerializable for PublicInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("a".to_string(), <Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
+        map.insert("a".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
         map.insert("b".to_string(), self.B_i.toml());
         map.insert("nullifier".to_string(), self.N_i.toml());
         map.insert("id_hash".to_string(), self.H_id.toml());

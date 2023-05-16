@@ -1,7 +1,7 @@
 use ark_ff::{BigInt, BigInteger};
 use babyjubjub_ark::Signature;
 use crate::election::{ElectionIdentifier, VoteChoice};
-use crate::{BN254_Fr, BBJJ_Fr, BN254_G1, BBJJ_G1, concat_vec};
+use crate::{BN254_Fr, BBJJ_G1, BBJJ_Fr};
 
 use crate::preprover::StorageProof;
 use crate::serialisation::Wrapper;
@@ -25,21 +25,14 @@ impl Into<Vec<BN254_Fr>> for Wrapper<Signature> {
     }
 }
 
-impl Into<Vec<BN254_Fr>> for Wrapper<BN254_G1> {
-    fn into(self) -> Vec<BN254_Fr> {
-        let x : Vec<BN254_Fr> = Wrapper(self.0.x.0).into();
-        let y : Vec<BN254_Fr> = Wrapper(self.0.y.0).into();
-        let z : Vec<BN254_Fr> = Wrapper(self.0.z.0).into();
-        concat_vec!(x, y, z)
-    }
-}
-
 impl Into<Vec<BN254_Fr>> for Wrapper<BigInt<4>> {
     fn into(self) -> Vec<BN254_Fr> {
         // Split the BigInt into two BN254_Frs and return them as an array
-        let mut bytes = self.0.to_bits_be();
-        let mut x = &bytes[..128];
-        let mut y = &bytes[128..];
+        let bytes = self.0.to_bits_be();
+        // Split the bytes into two halves
+        let x = &bytes[..128];
+        let y = &bytes[128..];
+        // Convert the halves into BN254_Frs
         let x = BN254_Fr::new(BigInt::from_bits_be(x));
         let y = BN254_Fr::new(BigInt::from_bits_be(y));
         vec![x, y]
