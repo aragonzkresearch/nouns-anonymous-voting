@@ -41,7 +41,7 @@ impl Mock for TLockParams {
 
 /// Represents the Election Parameters
 pub struct ElectionParams {
-    pub(crate) identifier: ElectionIdentifier,
+    pub(crate) id: ElectionIdentifier,
     pub(crate) tlock: TLockParams,
 }
 
@@ -49,7 +49,7 @@ pub struct ElectionParams {
 impl Mock for ElectionParams {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         ElectionParams {
-            identifier: ElectionIdentifier::mock(rng),
+            id: ElectionIdentifier::mock(rng),
             tlock: TLockParams::mock(rng),
         }
     }

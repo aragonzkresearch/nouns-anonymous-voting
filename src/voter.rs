@@ -38,7 +38,7 @@ impl Voter {
 
         // Generate signatures for the vote and nullifier using the voter's registry key
         // Note that we first hash the messages and only then sign them
-        let id_hash = poseidon.hash(vec![*nft_id, election_params.identifier.chain_id, election_params.identifier.process_id, election_params.identifier.contract_addr])?;
+        let id_hash = poseidon.hash(vec![*nft_id, election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr])?;
         let sigma = self.rck.sign(id_hash)?; // DS.Sign(registry_key, election_params.identifier);
         let vote_choice_message = poseidon.hash(vec![v.clone().into()])?;
         let tau = self.rck.sign(vote_choice_message)?; // DS.Sign(registry_key, vote_choice);
@@ -50,7 +50,7 @@ impl Voter {
         let a: BBJJ_G1 = PrivateKey::import(r.0.to_bytes_be().to_vec()).expect("Failed to import r_i").public(); // A = g^r_i in multiplicative notation
         let k: BBJJ_G1 = election_params.tlock.PK_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
 
-        let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k)), vec![v.clone().into(), election_params.identifier.chain_id, election_params.identifier.process_id, election_params.identifier.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
+        let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k)), vec![v.clone().into(), election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
         let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
         let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
@@ -61,13 +61,13 @@ impl Voter {
                 a,
                 b,
                 nullifier,
-                id_hash
+                id_hash,
+                election_id: election_params.id.clone()
             },
             private_input: PrivateInput {
                 v: v.clone(),
                 sigma,
                 tau,
-                id: election_params.identifier.clone(),
                 rck: self.rck.public(),
                 p_1,
                 p_2,
