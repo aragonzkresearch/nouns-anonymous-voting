@@ -9,68 +9,71 @@
 
 
 
-Recall that in the ZK registry we have $RCK_i=g^{RK_i}$, $PK_t$ represent the TLCS public key for a given time $t$ used for the election, and $R$ is the root of the Ethereum state used for the election.
-Henceforth, $id=\{NFT_{ID}, chain_{ID}, process_{ID}, contract_{ADDR}\}$.
+Recall that in the ZK registry we have $RCK=g^{RK}$, $PK_t$ represent the TLCS public key for a given time $t$ used for the election, and $R$ is the root of the Ethereum state used for the election.
+Henceforth, $id=\{chain_{ID}, process_{ID}, contract_{ADDR}\}$
 
 The voter computes:
-- Signatures $\sigma_i=DS.Sign(RK_i,id)),~ \tau_i=DS.Sign(RK_i,v_i),$ where $v_i$ is the voter's preference and $RK_i$ is used as signing key (so that $RCK_i$ will be the corresponding verification key).
-- nullifier $N_i=Poseidon(\sigma_i, id)$.
-- $A_i=g^{r_i}$,$K_i =PK_{t}^{r_i},$ for some randomness $r_i\in Z_p$. (note that this is equal to $g^{r_i sk_i}$).
-- $B_i=H(K_i, v_i, id).$
-- $H_id=H(id)$
+- Signatures $\sigma=DS.Sign(RK,(NFT_{id},id)),~ \tau=DS.Sign(RK,v),$ where $v$ is the voter's preference and $RK$ is used as signing key (so that $RCK$ will be the corresponding verification key).
+- nullifier $N=Poseidon(\sigma, id)$.
+- $A=g^{r}$,$K =PK_{t}^{r},$ for some randomness $r\in Z_p$. (note that this is equal to $g^{r\cdot sk}$).
+- $B=H(K, v, id).$
+- $H_{id}=Poseidon(NFT_{id},id)$
 - The path $p_1$ from the root $R$ to the relevant information needed to prove ownership of the token $NFT_{id}$ and the path $p_2$ to the registry commitment key $RCK_i$, and the path(s) $p_3$ needed to prove that $NFT_{id}$ is not delegated.
-  The voter sends to the server the tuple $(RCK_i,N_i,id,H_id,r_i,v_i,A_i,K_i,B_i,\sigma_i,\tau_i,p_1,p_2,p_3)$.
+  The voter sends to the server the tuple $(RCK,N,id,NFT_id,H_{id},r,v,A,K,B,\sigma,\tau,p_1,p_2,p_3)$.
 
 > The Sign algorithm is for a DS scheme that has the following property: it is hard for an adversary to produce two different signatures of the same message (BLS and RSA have this property).
-> In other words, $\sigma$ is for a deterministic unique signature. Alternatively we can use PLUME.
+> In other words, $\sigma$ is for a deterministic unique signature. Alternatively we can use PLUME in future. For the moment we will use EdDSA.
 
 
 Consider the following Noir program $P$.
-$P$ has public inputs $(A_i,B_i,N_i,H_id,R)$ and as witness $(v_i,\sigma_i,address,\tau_i, id,RCK_i,p_1,p_2,p_3)$.
+$P$ has public inputs $(A,B,N,H_{id},id,R)$ and as witness $(v,\sigma,address,\tau, NFT_id,RCK,p_1,p_2,p_3)$.
 $P$ does the following.
-1. Check that $DS.Ver(RCK_i,\sigma_i,id)=1$, that is that $\sigma_i$ is a signature of $id$ under pubk $RCK_i$.
-2. Check that $DS.Ver(RCK_i,\tau_i,v_i)=1$, that is that $\tau_i$ is a signature of $v_i$ under pubk $RCK_i$.
-3. Check that $H_id=H(id)$.
-4. Check that $N_i=Poseidon(\sigma_i,id)$.
+1. Check that $DS.Ver(RCK,\sigma,(NFT_{id},id))=1$, that is that $\sigma$ is a signature of $id$ under pubk $RCK$.
+2. Check that $DS.Ver(RCK,\tau,v)=1$, that is that $\tau$ is a signature of $v$ under pubk $RCK$.
+3. Check that $H_{id}=Poseidon(NFT_{id},id)$.
+4. Check that $N=Poseidon(\sigma,id)$.
 5. Correct encryption of the vote:
-    - 4.1. $g^{r_i}=A_i$ and $K_i=PK_{t}^{r_i}$.
-    - 4.2. $B_i =Poseidon(K_i, v_i,id)$.
-    - 4.3. $v_i\in\{0,1,2\}$.
+    - 4.1. $g^{r}=A$ and $K=PK_{t}^{r}$.
+    - 4.2. $B =Poseidon(K, v,id)$.
+    - 4.3. $v\in\{0,1,2\}$.
 6. Use the path $p_1$ to check that the Ethereum's state committed to in $R$ includes in the ZK registry $RCK_i$ that is associated with an Ethereum's user with address $address$.
 7. Use the path $p_2$ to check that the Ethereum's state committed to in $R$ contains a token with identifier $NFT_{id}$ owned by an address $address$ ($addr$ holds the $NFT_{id}$).
 8.  Similarly to before use $p_3$ to check that $NFT_{id}$ is not delegated.
-9. ==TODO== check that signature randomness is deterministic $r = H(msg ~||~ H(sk))$
+9. ==TODO== check that signature randomness is deterministic $r = Poseidon(msg ~||~ Poseidon(RK))$
 
 
 > Note: if we can remove "delegation" from the scope, step 6. is not needed (1 EthStorageProof's opening less).
 
-The server using the public inputs and the witnesses computes a proof $\pi_i$ and sends back to the voter $\pi_i$.
+The server using the public inputs and the witnesses computes a proof $\pi$ and sends back to the voter $\pi$.
 
-The voter sends to the smart contract $(A_i,B_i,N_i,\pi_i)$.
+The voter sends to the smart contract $(A,B,N,\pi)$.
+The smart contract keeps a value $B_K$ that at beginning is null. If the ballot $(A,B,N,\pi)$ is the first ballot received with a valid proo, then the smart contract sets $B_K=B$. If the ballot $(A,B,N,\pi)$ comes with a valid proof but is not the first received the smart contract sets $B_K=Keccac(B_K,B)$.
 
-
+If $N$ voters submitted valid proofs we call $(A_i,B_i,N_i,\pi_i)$, for $i\in[N]$, the values such voter sent to the smart contract.
 # Nouns tally proof generation and verification
 
 
 ++Known paramters:++
 - $t$: time to decrypt votes, kown in the contract
-- $PK_{t}$: TLCS public key
+- $PK_{t}$: TLCS public key for time t
+- identifier $id$ as previously defined.
 
 ++Before generating the proof:++
 - Fetch $A_i$ for $\forall i \in \{1, \ldots, n\}$
 - Fetch $B_i$ for $\forall i \in \{1, \ldots, n\}$
 - Fetch secret key of TLCS $sk_{t}$
+- Fetch value $B_K$ from the smart contract.
 
 ++Get option for a voter $i$:++
 - Compute $A_i^{sk_{t}} = g^{r_i sk_t} = K_i$.
 - Find the first value $v_i\in \{0,1,2\}$ such that
     <!-- OLD - $K_i'=H_4(K_i)$, where $K_i = e(T_{sign}, A_i)$ -->
-    - $B_i = H(K_i, v_i, chain_{ID}, process_{ID}, contract_{ADDR})$. (We will be able to find such value $v_i$ because the voter's ZK proof was verified succesfully.)
+    - $B_i = Poseidon(K_i, v_i, id)$. (We will be able to find such value $v_i$ because the voter's ZK proof was verified succesfully.)
 
 ++Prove vote aggregation:++
 - Sum all $v_i$ for each vote option to compute an array $vote_{count}$ storing # votes for, # votes against, # votes abstain.
 - Given public inputs $B_K$, $chain_{ID}$, $process_{ID}$, $contract_{ADDR}$, $vote_{count}$ and witnesses $(K_i,v_i)$ we generate a zk proof of the following prorogram:
-    - For all $i\in[n]$, the program computes $B_i =H(K_i, v_i, chain_{ID}, process_{ID}, contract_{ADDR})$
+    - For all $i\in[n]$, the program computes $B_i =Poseidon(K_i, v_i, chain_{ID}, process_{ID}, contract_{ADDR})$
     - Compute $B_K' = Keccak(B_n, Keccak(B_{n-1}, Keccak(...))$ and verify that $B_k = B_K'$
     - Verify that the votes have been correctly counted, i.e. all $j\in{0,1,2}$ $vote_{count}[j]$ equals $|\{v_i|v_i=j\}|$
     - Output $1$ iff all verifications passed
@@ -89,7 +92,8 @@ In addition, the $SC$ has access to the following information:
 - `contract_addr`
 
 If the `tally_proof` is correct, the $SC$ then sets the tally fields with the provided voting result, which can be then be publicly queried by other smart contracts.
-
+### Implementation details
+We instantiate our construction working on the Babyjubjub EC that is SNARK friendly for SNARKs that over over the BN254 bilinear group and with the EdDSA signature scheme (with step $9$ in the Noir voter circuit added to guarantee the unique signature property).
 
 ## Future work: Achieving full privacy against the server
 The idea is simple.

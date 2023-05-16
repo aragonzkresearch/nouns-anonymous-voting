@@ -28,7 +28,8 @@ pub struct PublicInput {
     pub(crate) a: BBJJ_G1,
     pub(crate) b: BN254_Fr,
     pub(crate) nullifier: BN254_Fr,
-    pub(crate) id_hash: BN254_Fr
+    pub(crate) id_hash: BN254_Fr,
+    pub(crate) election_id: ElectionIdentifier
 }
 
 #[derive(Debug)]
@@ -36,7 +37,6 @@ pub struct PrivateInput {
     pub(crate) v: VoteChoice,
     pub(crate) sigma: Signature,
     pub(crate) tau: Signature,
-    pub(crate) id: ElectionIdentifier,
     pub(crate) rck: BBJJ_G1,
     pub(crate) p_1: StorageProof,
     pub(crate) p_2: StorageProof,

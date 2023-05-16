@@ -83,6 +83,7 @@ impl TomlSerializable for PublicInput {
         map.insert("b".to_string(), self.b.toml());
         map.insert("nullifier".to_string(), self.nullifier.toml());
         map.insert("id_hash".to_string(), self.id_hash.toml());
+        map.insert("election_id".to_string(), self.election_id.toml());
         Value::Table(map)
     }
 }
@@ -105,7 +106,6 @@ impl TomlSerializable for PrivateInput {
         map.insert("v".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v).toml());
         map.insert("sigma".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.sigma)).toml());
         map.insert("tau".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.tau)).toml());
-        map.insert("id".to_string(), self.id.toml());
         map.insert("rck".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.rck)).toml());
 
         for (name,data) in [("p1", self.p_1.toml()), ("p2", self.p_2.toml()), ("p3", self.p_3.toml())]
