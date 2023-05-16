@@ -26,19 +26,19 @@ pub struct StorageProofPLACEHOLDER {
 
 #[derive(Debug)]
 pub struct PublicInput {
-    pub(crate) A_i: BN254_G1,
-    pub(crate) B_i: BN254_Fr,
-    pub(crate) N_i: BN254_Fr,
+    pub(crate) A: BN254_G1,
+    pub(crate) B: BN254_Fr,
+    pub(crate) N: BN254_Fr,
     pub(crate) H_id: BN254_Fr
 }
 
 #[derive(Debug)]
 pub struct PrivateInput {
-    pub(crate) v_i: VoteChoice,
-    pub(crate) SIGMA_i: Signature,
-    pub(crate) TAU_i: Signature,
+    pub(crate) v: VoteChoice,
+    pub(crate) SIGMA: Signature,
+    pub(crate) TAU: Signature,
     pub(crate) id: ElectionIdentifier,
-    pub(crate) RCK_i: BBJJ_G1,
+    pub(crate) RCK: BBJJ_G1,
     pub(crate) p_1: StorageProofPLACEHOLDER,
     pub(crate) p_2: StorageProofPLACEHOLDER,
     pub(crate) p_3: StorageProofPLACEHOLDER,
