@@ -2,7 +2,7 @@ use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
 use toml::Value;
 use toml::value::Array;
-use crate::{BN254_Fr, BBJJ_Fr, BN254_G1, BBJJ_G1, concat_vec};
+use crate::{BN254_Fr, BBJJ_G1};
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::serialisation::Wrapper;
 use crate::preprover::{PrivateInput, PublicInput, StorageProofPLACEHOLDER, VoteProverPackage};
@@ -13,7 +13,7 @@ pub trait TomlSerializable {
 
 impl TomlSerializable for StorageProofPLACEHOLDER {
     fn toml(self) -> Value {
-        let mut map = toml::map::Map::new();
+        let map = toml::map::Map::new();
         Value::Table(map)
     }
 }
@@ -44,7 +44,7 @@ impl TomlSerializable for PublicInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("A_i".to_string(), <Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
+        map.insert("A_i".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
         map.insert("B_i".to_string(), self.B_i.toml());
         map.insert("N_i".to_string(), self.N_i.toml());
         map.insert("H_id".to_string(), self.H_id.toml());

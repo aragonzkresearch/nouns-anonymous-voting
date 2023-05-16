@@ -10,8 +10,10 @@ mod serialisation;
 
 
 /// Define the reexported types from the arkworks libraries to be used in this crate
-pub(crate) use ark_bn254::{G1Projective as BN254_G1, Fr as BN254_Fr};
-pub(crate) use babyjubjub_ark::{Point as BBJJ_G1, Signature, Fr as BBJJ_Fr};
+pub(crate) use babyjubjub_ark::{Point as BBJJ_G1, Signature, PrivateKey as BBJJ_Pr_Key, Fr as BBJJ_Fr};
+pub(crate) use ark_bn254::Fr as BN254_Fr;
+
+
 
 use crate::election::{ElectionParams, VoteChoice};
 use crate::serialisation::toml::TomlSerializable;

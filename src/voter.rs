@@ -1,10 +1,10 @@
-use ark_ec::Group;
+use ark_ff::BigInteger;
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
+use babyjubjub_ark::PrivateKey;
 use poseidon_ark::Poseidon;
-use babyjubjub_ark::PrivateKey as PrivateBBJJKey;
 
-use crate::{BN254_Fr, BN254_G1, concat_vec};
+use crate::{BN254_Fr, BBJJ_G1, BBJJ_Pr_Key, BBJJ_Fr, concat_vec};
 use crate::election::{ElectionParams, VoteChoice};
 use crate::utils::Mock;
 use crate::preprover::{PrivateInput, PublicInput, StorageProofPLACEHOLDER, VoteProverPackage};
@@ -13,23 +13,22 @@ use crate::serialisation::Wrapper;
 
 /// Represents the Voter Account
 pub struct Voter {
-    RK_i: PrivateBBJJKey, // Secret Registry Key of voter i
+    RK_i: BBJJ_Pr_Key, // Secret Registry Key of voter i
 }
 
 impl Mock for Voter {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         // Generate a random Vec of bytes length 32
-        let mut RK_i = vec![0u8; 32];
-        rng.fill_bytes(&mut RK_i);
-        Voter::new(RK_i)
+        Voter::new(
+            BBJJ_Pr_Key::mock(rng)
+        )
     }
 }
 
 impl Voter {
-    pub fn new(RK_i: Vec<u8>) -> Self {
-        let RK_i = PrivateBBJJKey::import(RK_i).unwrap();
+    pub fn new(private_key: BBJJ_Pr_Key) -> Self {
         Voter {
-            RK_i,
+            RK_i: private_key
         }
     }
 
@@ -47,11 +46,11 @@ impl Voter {
         // Generate the nullifier
         let N_i = poseidon.hash(Wrapper(SIGMA_i.clone()).into())?; // Poseidon(sigma, election_params.identifier);
 
-        let r_i : BN254_Fr = BN254_Fr::rand(rng); // random value
-        let A_i = BN254_G1::generator() * r_i; // A = g^r_i in multiplicative notation
-        let K_i = election_params.tlock.PK_t * r_i; // K = PK_t^r_i in multiplicative notation
+        let r_i = BBJJ_Fr::rand(rng);
+        let A_i : BBJJ_G1 = PrivateKey::import(r_i.0.to_bytes_be().to_vec()).expect("Failed to import r_i").public(); // A = g^r_i in multiplicative notation
+        let K_i : BBJJ_G1 = election_params.tlock.PK_t.mul_scalar(&r_i); // K = PK_t^r_i in multiplicative notation
 
-        let B_i = poseidon.hash(concat_vec![<Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(K_i)), vec![v_i.clone().into(), election_params.identifier.chain_id, election_params.identifier.process_id, election_params.identifier.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
+        let B_i = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(K_i)), vec![v_i.clone().into(), election_params.identifier.chain_id, election_params.identifier.process_id, election_params.identifier.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
         let p_1 = StorageProofPLACEHOLDER {}; // TODO // Storage Prove of NFT ownership by voter address
         let p_2 = StorageProofPLACEHOLDER {}; // TODO // Storage Prove that NFT has not been delegated
