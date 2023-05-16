@@ -5,16 +5,51 @@ use toml::value::Array;
 use crate::{BN254_Fr, BBJJ_Fr, BN254_G1, BBJJ_G1, concat_vec};
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::serialisation::Wrapper;
-use crate::preprover::{PrivateInput, PublicInput, StorageProofPLACEHOLDER, VoteProverPackage};
+use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
+use crate::MAX_NODE_LEN;
+use crate::MAX_DEPTH;
 
 pub trait TomlSerializable {
     fn toml(self) -> Value;
 }
 
-impl TomlSerializable for StorageProofPLACEHOLDER {
+impl TomlSerializable for StorageProof {
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
+        let depth = self.depth;
+        map.insert("depth".to_string(),depth.toml());
+
+        let path = self.path;
+
+        // Proof path needs to be an appropriately padded flat array.
+        let padded_path = path.into_iter().chain({
+            let depth_excess = MAX_DEPTH - depth;
+            // Append with empty nodes to fill up to depth MAX_DEPTH
+            vec![vec![]; depth_excess]
+        }).map(
+            |mut v| {
+                let node_len = v.len();
+                let len_excess = MAX_NODE_LEN - node_len;
+                // Then pad each node up to length MAX_NODE_LEN
+                v.append(&mut vec![0; len_excess]);
+                v
+            }
+        ).flatten().collect::<Vec<u8>>(); // And flatten.
+        map.insert("path".to_string(), padded_path.toml());
+        
         Value::Table(map)
+    }
+}
+
+impl TomlSerializable for u8 {
+    fn toml(self) -> Value {
+        Value::String(format!("0x{:x}", self))
+    }
+}
+
+impl TomlSerializable for usize {
+    fn toml(self) -> Value {
+        Value::String(format!("0x{:x}", self))
     }
 }
 
@@ -44,10 +79,10 @@ impl TomlSerializable for PublicInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("A_i".to_string(), <Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
-        map.insert("B_i".to_string(), self.B_i.toml());
-        map.insert("N_i".to_string(), self.N_i.toml());
-        map.insert("H_id".to_string(), self.H_id.toml());
+        map.insert("a".to_string(), <Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
+        map.insert("b".to_string(), self.B_i.toml());
+        map.insert("nullifier".to_string(), self.N_i.toml());
+        map.insert("id_hash".to_string(), self.H_id.toml());
         Value::Table(map)
     }
 }
@@ -67,14 +102,17 @@ impl TomlSerializable for PrivateInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("v_i".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v_i).toml());
-        map.insert("SIGMA_i".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.SIGMA_i)).toml());
-        map.insert("TAU_i".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.TAU_i)).toml());
+        map.insert("v".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v_i).toml());
+        map.insert("sigma".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.SIGMA_i)).toml());
+        map.insert("tau".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.TAU_i)).toml());
         map.insert("id".to_string(), self.id.toml());
-        map.insert("RCK_i".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.RCK_i)).toml());
-        map.insert("p_1".to_string(), <StorageProofPLACEHOLDER as Into<Vec<BN254_Fr>>>::into(self.p_1).toml());
-        map.insert("p_2".to_string(), <StorageProofPLACEHOLDER as Into<Vec<BN254_Fr>>>::into(self.p_2).toml());
-        map.insert("p_3".to_string(), <StorageProofPLACEHOLDER as Into<Vec<BN254_Fr>>>::into(self.p_3).toml());
+        map.insert("rck".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.RCK_i)).toml());
+
+        for (name,data) in [("p1", self.p_1.toml()), ("p2", self.p_2.toml()), ("p3", self.p_3.toml())]
+        {            
+            map.insert(name.to_string(), data);
+        }
+        
         Value::Table(map)
     }
 }

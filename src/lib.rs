@@ -8,6 +8,9 @@ mod utils;
 mod election;
 mod serialisation;
 
+// Useful constants for storage proofs
+pub(crate) const MAX_NODE_LEN: usize = 532; // The maximum byte length of a node
+pub(crate) const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
 /// Define the reexported types from the arkworks libraries to be used in this crate
 pub(crate) use ark_bn254::{G1Projective as BN254_G1, Fr as BN254_Fr};
@@ -38,8 +41,14 @@ pub fn run() -> Result<(), String> {
     let toml_private_string = toml::to_string_pretty(&vote_package.private_input.toml()).map_err(|e| format!("Failed to generate toml for private_input: {}", e.to_string()))?;
     let toml_public_string = toml::to_string_pretty(&vote_package.public_input.toml()).map_err(|e| format!("Failed to generate toml for public_input: {}", e.to_string()))?;
 
+    // Move to circuit directory
+    std::env::set_current_dir("circuit").map_err(|e| e.to_string())?;
+
+    // Write Toml files
     fs::write("Prover.toml", toml_private_string.add(&*toml_public_string.clone())).map_err(|e| e.to_string())?;
     fs::write("Verifier.toml", toml_public_string).map_err(|e| e.to_string())?;
+
+    // Generate proof
 
     Ok(())
 }
