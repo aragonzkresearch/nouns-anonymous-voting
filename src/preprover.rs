@@ -25,19 +25,19 @@ impl StorageProof {
 
 #[derive(Debug)]
 pub struct PublicInput {
-    pub(crate) A_i: BBJJ_G1,
-    pub(crate) B_i: BN254_Fr,
-    pub(crate) N_i: BN254_Fr,
-    pub(crate) H_id: BN254_Fr
+    pub(crate) a: BBJJ_G1,
+    pub(crate) b: BN254_Fr,
+    pub(crate) nullifier: BN254_Fr,
+    pub(crate) id_hash: BN254_Fr
 }
 
 #[derive(Debug)]
 pub struct PrivateInput {
-    pub(crate) v_i: VoteChoice,
-    pub(crate) SIGMA_i: Signature,
-    pub(crate) TAU_i: Signature,
+    pub(crate) v: VoteChoice,
+    pub(crate) sigma: Signature,
+    pub(crate) tau: Signature,
     pub(crate) id: ElectionIdentifier,
-    pub(crate) RCK_i: BBJJ_G1,
+    pub(crate) rck: BBJJ_G1,
     pub(crate) p_1: StorageProof,
     pub(crate) p_2: StorageProof,
     pub(crate) p_3: StorageProof,

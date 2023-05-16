@@ -79,10 +79,10 @@ impl TomlSerializable for PublicInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("a".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.A_i)).toml());
-        map.insert("b".to_string(), self.B_i.toml());
-        map.insert("nullifier".to_string(), self.N_i.toml());
-        map.insert("id_hash".to_string(), self.H_id.toml());
+        map.insert("a".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.a)).toml());
+        map.insert("b".to_string(), self.b.toml());
+        map.insert("nullifier".to_string(), self.nullifier.toml());
+        map.insert("id_hash".to_string(), self.id_hash.toml());
         Value::Table(map)
     }
 }
@@ -102,11 +102,11 @@ impl TomlSerializable for PrivateInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("v".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v_i).toml());
-        map.insert("sigma".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.SIGMA_i)).toml());
-        map.insert("tau".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.TAU_i)).toml());
+        map.insert("v".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v).toml());
+        map.insert("sigma".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.sigma)).toml());
+        map.insert("tau".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.tau)).toml());
         map.insert("id".to_string(), self.id.toml());
-        map.insert("rck".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.RCK_i)).toml());
+        map.insert("rck".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.rck)).toml());
 
         for (name,data) in [("p1", self.p_1.toml()), ("p2", self.p_2.toml()), ("p3", self.p_3.toml())]
         {            
