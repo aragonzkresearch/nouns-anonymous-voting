@@ -13,16 +13,26 @@ use poseidon_ark::Poseidon;
 use toml::{Table, Value};
 use crate::{concat_vec, BN254_G1, Voter, BN254_Fr, BBJJ_Fr, BBJJ_G1};
 use crate::election::{ElectionIdentifier, VoteChoice};
-
+use crate::MAX_NODE_LEN;
+use crate::MAX_DEPTH;
 
 #[derive(Debug)]
-pub struct StorageProofPLACEHOLDER {
-    // TODO - parametrise this with Ahmad's work
+pub struct StorageProof {
+    pub(crate) path: Vec<Vec<u8>>,
+    pub(crate) depth: usize
 }
 
-
-
-
+impl StorageProof {
+    pub fn new(path: Vec<Vec<u8>>) -> Self
+    {
+        let depth = path.len();
+        // More checks necessary in reality, but these will catch obviously invalid proofs.
+        assert!(depth <= MAX_DEPTH, "The maximum possible proof depth ({}) has been exceeded!", MAX_DEPTH);
+        path.iter().for_each(|node| {assert!(node.len() <= MAX_NODE_LEN, "Invalid node!");});
+        
+        StorageProof {path, depth}
+    }
+}
 
 #[derive(Debug)]
 pub struct PublicInput {
@@ -39,9 +49,9 @@ pub struct PrivateInput {
     pub(crate) TAU_i: Signature,
     pub(crate) id: ElectionIdentifier,
     pub(crate) RCK_i: BBJJ_G1,
-    pub(crate) p_1: StorageProofPLACEHOLDER,
-    pub(crate) p_2: StorageProofPLACEHOLDER,
-    pub(crate) p_3: StorageProofPLACEHOLDER,
+    pub(crate) p_1: StorageProof,
+    pub(crate) p_2: StorageProof,
+    pub(crate) p_3: StorageProof,
 }
 
 #[derive(Debug)]

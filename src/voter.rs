@@ -2,12 +2,12 @@ use ark_ec::Group;
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use poseidon_ark::Poseidon;
-use babyjubjub_ark::PrivateKey as PrivateBBJJKey;
+use babyjubjub_ark::{PrivateKey as PrivateBBJJKey};
 
 use crate::{BN254_Fr, BN254_G1, concat_vec};
 use crate::election::{ElectionParams, VoteChoice};
 use crate::utils::Mock;
-use crate::preprover::{PrivateInput, PublicInput, StorageProofPLACEHOLDER, VoteProverPackage};
+use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
 use crate::serialisation::Wrapper;
 
 
@@ -53,9 +53,9 @@ impl Voter {
 
         let B_i = poseidon.hash(concat_vec![<Wrapper<BN254_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(K_i)), vec![v_i.clone().into(), election_params.identifier.chain_id, election_params.identifier.process_id, election_params.identifier.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
-        let p_1 = StorageProofPLACEHOLDER {}; // TODO // Storage Prove of NFT ownership by voter address
-        let p_2 = StorageProofPLACEHOLDER {}; // TODO // Storage Prove that NFT has not been delegated
-        let p_3 = StorageProofPLACEHOLDER {}; // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
+        let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
+        let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
+        let p_3 = StorageProof::new(vec![]); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
 
         let proverPackage = VoteProverPackage {
             public_input: PublicInput {

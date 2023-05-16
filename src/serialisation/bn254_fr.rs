@@ -3,10 +3,10 @@ use babyjubjub_ark::Signature;
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::{BN254_Fr, BBJJ_Fr, BN254_G1, BBJJ_G1, concat_vec};
 
-use crate::preprover::StorageProofPLACEHOLDER;
+use crate::preprover::StorageProof;
 use crate::serialisation::Wrapper;
 
-impl Into<Vec<BN254_Fr>> for StorageProofPLACEHOLDER {
+impl Into<Vec<BN254_Fr>> for StorageProof {
     fn into(self) -> Vec<BN254_Fr> {
         vec![]
     }
