@@ -24,7 +24,6 @@ use crate::utils::Mock;
 use crate::voter::Voter;
 
 use std::fs;
-use std::ops::Add;
 
 pub fn run() -> Result<(), String> {
 
@@ -40,15 +39,23 @@ pub fn run() -> Result<(), String> {
     // Debug print the vote package
     println!("vote_package: {:?}", vote_package);
 
-    let toml_private_string = toml::to_string_pretty(&vote_package.private_input.toml()).map_err(|e| format!("Failed to generate toml for private_input: {}", e.to_string()))?;
-    let toml_public_string = toml::to_string_pretty(&vote_package.public_input.toml()).map_err(|e| format!("Failed to generate toml for public_input: {}", e.to_string()))?;
+    // Set up Verifier and Prover Tomls
+    let verifier_toml = vote_package.public_input.toml();
+    let prover_toml = {
+        let mut out_toml = vote_package.private_input.toml().as_table().unwrap().clone();
+        out_toml.extend::<toml::Table>(verifier_toml.clone().as_table().unwrap().clone());
+        out_toml
+};
+
+    let prover_toml_string = toml::to_string_pretty(&prover_toml).map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
+    let verifier_toml_string = toml::to_string_pretty(&verifier_toml).map_err(|e| format!("Failed to generate Verifier.toml: {}", e.to_string()))?;
 
     // Move to circuit directory
     std::env::set_current_dir("circuit").map_err(|e| e.to_string())?;
 
     // Write Toml files
-    fs::write("Prover.toml", toml_private_string.add(&*toml_public_string.clone())).map_err(|e| e.to_string())?;
-    fs::write("Verifier.toml", toml_public_string).map_err(|e| e.to_string())?;
+    fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
+    fs::write("Verifier.toml", verifier_toml_string).map_err(|e| e.to_string())?;
 
     // Generate proof
 
