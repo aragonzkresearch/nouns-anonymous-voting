@@ -2,7 +2,7 @@ use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
 use toml::Value;
 use toml::value::Array;
-use crate::{BN254_Fr, BBJJ_G1};
+use crate::{BN254_Fr, BBJJ_G1, BBJJ_Fr};
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::serialisation::Wrapper;
 use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
@@ -41,19 +41,31 @@ impl TomlSerializable for StorageProof {
     }
 }
 
+impl TomlSerializable for bool {
+    fn toml(self) -> Value {
+        Value::String(format!("{}", if self { 1 } else { 0 }))
+    }
+}
+
 impl TomlSerializable for u8 {
     fn toml(self) -> Value {
-        Value::String(format!("0x{:x}", self))
+        Value::String(format!("0x{:02x}", self))
     }
 }
 
 impl TomlSerializable for usize {
     fn toml(self) -> Value {
-        Value::String(format!("0x{:x}", self))
+        Value::String(format!("0x{:02x}", self))
     }
 }
 
 impl TomlSerializable for BN254_Fr {
+    fn toml(self) -> Value {
+        Value::String(format!("0x{}", hex::encode(self.into_bigint().to_bytes_be())))
+    }
+}
+
+impl TomlSerializable for BBJJ_Fr {
     fn toml(self) -> Value {
         Value::String(format!("0x{}", hex::encode(self.into_bigint().to_bytes_be())))
     }
@@ -84,6 +96,7 @@ impl TomlSerializable for PublicInput {
         map.insert("nullifier".to_string(), self.nullifier.toml());
         map.insert("id_hash".to_string(), self.id_hash.toml());
         map.insert("election_id".to_string(), self.election_id.toml());
+        map.insert("r".to_string(), self.r.into_bigint().to_bits_be().toml());
         Value::Table(map)
     }
 }
@@ -98,17 +111,24 @@ impl TomlSerializable for VoteProverPackage {
     }
 }
 
+impl TomlSerializable for Signature {
+    fn toml(self) -> Value {
+        Value::Array(vec![self.r_b8.x.toml(), self.r_b8.y.toml(), self.s.toml()])
+    }
+}
 
 impl TomlSerializable for PrivateInput {
 
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
+        map.insert("k".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.k)).toml());
+        map.insert("nft_id".to_string(), self.nft_id.toml());
         map.insert("v".to_string(), <VoteChoice as Into<BN254_Fr>>::into(self.v).toml());
-        map.insert("sigma".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.sigma)).toml());
-        map.insert("tau".to_string(), <Wrapper<Signature> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.tau)).toml());
+        map.insert("sigma".to_string(), self.sigma.toml());
+        map.insert("tau".to_string(), self.tau.toml());
         map.insert("rck".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.rck)).toml());
 
-        for (name,data) in [("p1", self.p_1.toml()), ("p2", self.p_2.toml()), ("p3", self.p_3.toml())]
+        for (name,data) in [("p_1", self.p_1.toml()), ("p_2", self.p_2.toml()), ("p_3", self.p_3.toml())]
         {            
             map.insert(name.to_string(), data);
         }

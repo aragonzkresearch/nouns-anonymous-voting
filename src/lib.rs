@@ -20,8 +20,11 @@ pub(crate) use ark_bn254::Fr as BN254_Fr;
 
 use crate::election::{ElectionParams, VoteChoice};
 use crate::serialisation::toml::TomlSerializable;
+use crate::serialisation::Wrapper;
 use crate::utils::Mock;
 use crate::voter::Voter;
+use ark_std::UniformRand;
+
 
 use std::fs;
 
@@ -31,7 +34,7 @@ pub fn run() -> Result<(), String> {
     let voter = Voter::mock(&mut rng);
 
     let election_params = ElectionParams::mock(&mut rng);
-    let nft_id = BN254_Fr::from(0u8);
+    let nft_id = BN254_Fr::rand(&mut rng);
     let vote_choice = VoteChoice::Yes;
 
     let vote_package = voter.package_vote_for_proving(&mut rng, &election_params, &vote_choice, &nft_id)?;
@@ -40,24 +43,27 @@ pub fn run() -> Result<(), String> {
     println!("vote_package: {:?}", vote_package);
 
     // Set up Verifier and Prover Tomls
-    let verifier_toml = vote_package.public_input.toml();
+    let public_input_toml = {
+        let mut map = vote_package.public_input.toml().as_table().unwrap().clone();
+        map.insert("pk_t".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(election_params.tlock.PK_t)).toml());
+        toml::Value::Table(map)
+    };
     let prover_toml = {
         let mut out_toml = vote_package.private_input.toml().as_table().unwrap().clone();
-        out_toml.extend::<toml::Table>(verifier_toml.clone().as_table().unwrap().clone());
+        out_toml.extend::<toml::Table>(public_input_toml.clone().as_table().unwrap().clone());
         out_toml
 };
 
     let prover_toml_string = toml::to_string_pretty(&prover_toml).map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
-    let verifier_toml_string = toml::to_string_pretty(&verifier_toml).map_err(|e| format!("Failed to generate Verifier.toml: {}", e.to_string()))?;
 
     // Move to circuit directory
     std::env::set_current_dir("circuit").map_err(|e| e.to_string())?;
 
-    // Write Toml files
+    // Write Toml file
     fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
-    fs::write("Verifier.toml", verifier_toml_string).map_err(|e| e.to_string())?;
 
     // Generate proof
+    std::process::Command::new("nargo").arg("prove").arg("p").status().expect("Failed to generate proof.");
 
     Ok(())
 }
