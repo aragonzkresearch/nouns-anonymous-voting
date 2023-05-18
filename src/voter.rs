@@ -1,7 +1,7 @@
-use ark_ff::BigInteger;
+use ark_ff::{BigInteger, PrimeField};
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
-use babyjubjub_ark::PrivateKey;
+use babyjubjub_ark::B8;
 use poseidon_ark::Poseidon;
 
 use crate::{BN254_Fr, BBJJ_G1, BBJJ_Pr_Key, BBJJ_Fr, concat_vec};
@@ -44,13 +44,13 @@ impl Voter {
         let tau = self.rck.sign(vote_choice_message)?; // DS.Sign(registry_key, vote_choice);
 
         // Generate the nullifier
-        let nullifier = poseidon.hash(Wrapper(sigma.clone()).into())?; // Poseidon(sigma, election_params.identifier);
+        let nullifier = poseidon.hash(vec![sigma.r_b8.x, sigma.r_b8.y, BN254_Fr::from_be_bytes_mod_order(&sigma.s.into_bigint().to_bytes_be())])?; // Poseidon(sigma, election_params.identifier);
 
         let r = BBJJ_Fr::rand(rng);
-        let a: BBJJ_G1 = PrivateKey::import(r.0.to_bytes_be().to_vec()).expect("Failed to import r_i").public(); // A = g^r_i in multiplicative notation
+        let a: BBJJ_G1 = B8.mul_scalar(&r); // A = g^r_i in multiplicative notation
         let k: BBJJ_G1 = election_params.tlock.PK_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
 
-        let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k)), vec![v.clone().into(), election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
+        let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())), vec![v.clone().into(), election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
         let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
         let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
@@ -62,9 +62,12 @@ impl Voter {
                 b,
                 nullifier,
                 id_hash,
-                election_id: election_params.id.clone()
+                election_id: election_params.id.clone(),
+                r
             },
             private_input: PrivateInput {
+                k,
+                nft_id: nft_id.clone(),
                 v: v.clone(),
                 sigma,
                 tau,

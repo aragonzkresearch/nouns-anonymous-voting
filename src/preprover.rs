@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::{BN254_Fr, BBJJ_G1, Signature};
+use crate::{BN254_Fr, BBJJ_Fr, BBJJ_G1, Signature};
 use crate::election::{ElectionIdentifier, VoteChoice};
 use crate::MAX_NODE_LEN;
 use crate::MAX_DEPTH;
@@ -29,11 +29,14 @@ pub struct PublicInput {
     pub(crate) b: BN254_Fr,
     pub(crate) nullifier: BN254_Fr,
     pub(crate) id_hash: BN254_Fr,
-    pub(crate) election_id: ElectionIdentifier
+    pub(crate) election_id: ElectionIdentifier,
+    pub(crate) r: BBJJ_Fr
 }
 
 #[derive(Debug)]
 pub struct PrivateInput {
+    pub(crate) k: BBJJ_G1,
+    pub(crate) nft_id: BN254_Fr, // Really uint256
     pub(crate) v: VoteChoice,
     pub(crate) sigma: Signature,
     pub(crate) tau: Signature,
