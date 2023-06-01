@@ -1,4 +1,4 @@
-use nouns_voting_client::run;
+use nouns_voting_proofs::run;
 
 fn main() {
     // Collect all the arguments passed to the program

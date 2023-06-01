@@ -1,5 +1,6 @@
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
+use strum_macros::EnumIter;
 use crate::utils::Mock;
 use crate::{BN254_Fr, BBJJ_G1, BBJJ_Pr_Key};
 
@@ -25,7 +26,7 @@ impl Mock for ElectionIdentifier {
 
 /// Represents the Time Lock Service Parameters
 pub struct TLockParams {
-    pub(crate) PK_t: BBJJ_G1, // The TLCS public encryption key for time T
+    pub(crate) pk_t: BBJJ_G1, // The TLCS public encryption key for time T
     // PK: , // PK_t, TLCS public encryption key
     // space for other TLock parameters
 }
@@ -33,7 +34,7 @@ pub struct TLockParams {
 impl Mock for TLockParams {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         TLockParams {
-            PK_t: BBJJ_Pr_Key::mock(rng).public()
+            pk_t: BBJJ_Pr_Key::mock(rng).public()
         }
     }
 }
@@ -56,7 +57,7 @@ impl Mock for ElectionParams {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumIter, Eq, PartialEq)]
 pub enum VoteChoice {
     Yes,
     No,

@@ -1,10 +1,9 @@
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
-use babyjubjub_ark::B8;
 use poseidon_ark::Poseidon;
 
-use crate::{BN254_Fr, BBJJ_G1, BBJJ_Pr_Key, BBJJ_Fr, concat_vec};
+use crate::{B8, BN254_Fr, BBJJ_G1, BBJJ_Pr_Key, BBJJ_Fr, concat_vec};
 use crate::election::{ElectionParams, VoteChoice};
 use crate::utils::Mock;
 use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
@@ -48,7 +47,7 @@ impl Voter {
 
         let r = BBJJ_Fr::rand(rng);
         let a: BBJJ_G1 = B8.mul_scalar(&r); // A = g^r_i in multiplicative notation
-        let k: BBJJ_G1 = election_params.tlock.PK_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
+        let k: BBJJ_G1 = election_params.tlock.pk_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
 
         let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())), vec![v.clone().into(), election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 

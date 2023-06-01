@@ -7,13 +7,14 @@ mod voter;
 mod utils;
 mod election;
 mod serialisation;
+mod vote_aggregation;
 
 // Useful constants for storage proofs
 pub(crate) const MAX_NODE_LEN: usize = 532; // The maximum byte length of a node
 pub(crate) const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
 /// Define the reexported types from the arkworks libraries to be used in this crate
-pub(crate) use babyjubjub_ark::{Point as BBJJ_G1, Signature, PrivateKey as BBJJ_Pr_Key, Fr as BBJJ_Fr};
+pub(crate) use babyjubjub_ark::{B8, Point as BBJJ_G1, Signature, PrivateKey as BBJJ_Pr_Key, Fr as BBJJ_Fr};
 pub(crate) use ark_bn254::Fr as BN254_Fr;
 
 
@@ -45,7 +46,7 @@ pub fn run() -> Result<(), String> {
     // Set up Verifier and Prover Tomls
     let public_input_toml = {
         let mut map = vote_package.public_input.toml().as_table().unwrap().clone();
-        map.insert("pk_t".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(election_params.tlock.PK_t)).toml());
+        map.insert("pk_t".to_string(), <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(election_params.tlock.pk_t)).toml());
         toml::Value::Table(map)
     };
     let prover_toml = {
@@ -57,7 +58,7 @@ pub fn run() -> Result<(), String> {
     let prover_toml_string = toml::to_string_pretty(&prover_toml).map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
 
     // Move to circuit directory
-    std::env::set_current_dir("circuit").map_err(|e| e.to_string())?;
+    std::env::set_current_dir("circuits/client-proof").map_err(|e| e.to_string())?;
 
     // Write Toml file
     fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
