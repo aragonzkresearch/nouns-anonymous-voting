@@ -3,12 +3,11 @@ use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use poseidon_ark::Poseidon;
 
-use crate::{B8, BN254_Fr, BBJJ_G1, BBJJ_Pr_Key, BBJJ_Fr, concat_vec};
 use crate::election::{ElectionParams, VoteChoice};
-use crate::utils::Mock;
 use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
 use crate::serialisation::Wrapper;
-
+use crate::utils::Mock;
+use crate::{concat_vec, BBJJ_Fr, BBJJ_Pr_Key, BN254_Fr, B8, BBJJ_G1};
 
 /// Represents the Voter Account
 pub struct Voter {
@@ -18,38 +17,56 @@ pub struct Voter {
 impl Mock for Voter {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         // Generate a random Vec of bytes length 32
-        Voter::new(
-            BBJJ_Pr_Key::mock(rng)
-        )
+        Voter::new(BBJJ_Pr_Key::mock(rng))
     }
 }
 
 impl Voter {
     pub fn new(private_key: BBJJ_Pr_Key) -> Self {
-        Voter {
-            rck: private_key
-        }
+        Voter { rck: private_key }
     }
 
-    pub fn package_vote_for_proving<R: Rng>(&self, rng: &mut R, election_params: &ElectionParams, v: &VoteChoice, nft_id: &BN254_Fr) -> Result<VoteProverPackage, String> {
-
+    pub fn package_vote_for_proving<R: Rng>(
+        &self,
+        rng: &mut R,
+        election_params: &ElectionParams,
+        v: &VoteChoice,
+        nft_id: &BN254_Fr,
+    ) -> Result<VoteProverPackage, String> {
         let poseidon = Poseidon::new();
 
         // Generate signatures for the vote and nullifier using the voter's registry key
         // Note that we first hash the messages and only then sign them
-        let id_hash = poseidon.hash(vec![*nft_id, election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr])?;
+        let id_hash = poseidon.hash(vec![
+            *nft_id,
+            election_params.id.chain_id,
+            election_params.id.process_id,
+            election_params.id.contract_addr,
+        ])?;
         let sigma = self.rck.sign(id_hash)?; // DS.Sign(registry_key, election_params.identifier);
         let vote_choice_message = poseidon.hash(vec![v.clone().into()])?;
         let tau = self.rck.sign(vote_choice_message)?; // DS.Sign(registry_key, vote_choice);
 
         // Generate the nullifier
-        let nullifier = poseidon.hash(vec![sigma.r_b8.x, sigma.r_b8.y, BN254_Fr::from_be_bytes_mod_order(&sigma.s.into_bigint().to_bytes_be())])?; // Poseidon(sigma, election_params.identifier);
+        let nullifier = poseidon.hash(vec![
+            sigma.r_b8.x,
+            sigma.r_b8.y,
+            BN254_Fr::from_be_bytes_mod_order(&sigma.s.into_bigint().to_bytes_be()),
+        ])?; // Poseidon(sigma, election_params.identifier);
 
         let r = BBJJ_Fr::rand(rng);
         let a: BBJJ_G1 = B8.mul_scalar(&r); // A = g^r_i in multiplicative notation
         let k: BBJJ_G1 = election_params.tlock.pk_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
 
-        let b = poseidon.hash(concat_vec![<Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())), vec![v.clone().into(), election_params.id.chain_id, election_params.id.process_id, election_params.id.contract_addr]])?; // Poseidon(K_i, vote_choice, election_params.identifier);
+        let b = poseidon.hash(concat_vec![
+            <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())),
+            vec![
+                v.clone().into(),
+                election_params.id.chain_id,
+                election_params.id.process_id,
+                election_params.id.contract_addr
+            ]
+        ])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
         let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
         let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
@@ -62,7 +79,7 @@ impl Voter {
                 nullifier,
                 id_hash,
                 election_id: election_params.id.clone(),
-                r
+                r,
             },
             private_input: PrivateInput {
                 k,
@@ -74,11 +91,9 @@ impl Voter {
                 p_1,
                 p_2,
                 p_3,
-            }
+            },
         };
 
         return Ok(proverPackage);
     }
-
-
 }
