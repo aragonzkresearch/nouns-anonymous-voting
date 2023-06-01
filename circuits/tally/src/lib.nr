@@ -1,0 +1,58 @@
+use dep::std::hash::poseidon::bn254;
+use dep::std::hash::keccak256;
+
+// TODO: election_id in a struct maybe
+fn verify_tally<N>(
+    b_k: Field,
+    election_id: [Field; 3], // Election ID
+    vote_count: [Field; 3], // Vote count
+    num_voters: Field, // Number of voters
+    k_x: [Field; N],
+    k_y: [Field; N],
+    v: [Field; N] // Votes
+) -> bool
+{
+    let mut b = [0; N];
+    // let mut b_k_prime: [u8; 32] = [0; 32];
+
+    // Compute b
+    for i in 0..N
+    {
+        if (i as u32) < (num_voters as u32)
+            {
+                b[i] = bn254::hash_6([k_x[i], k_y[i], v[i], election_id[0], election_id[1], election_id[2]]);
+            }
+    }
+
+    // Compute b_k_prime
+    let mut b_k_prime = b[0];
+    
+    for i in 1..N
+    {
+        if (i as u32) < (num_voters as u32)
+        {
+            b_k_prime = bn254::hash_2([b[i], b_k_prime]);
+        }
+    }
+
+    // Check that b_k_prime agrees with b_k
+    assert(b_k == b_k_prime);
+
+    // Verify that the votes have been counted correctly
+    for j in 0..3
+    {
+        let mut v_count = 0;
+
+        for i in 0..N
+        {
+            if (i as u32) < (num_voters as u32)
+            {
+                v_count += (v[i] == j) as Field;
+            }
+        }
+
+        assert(v_count == vote_count[j]);
+    }
+
+    true
+}

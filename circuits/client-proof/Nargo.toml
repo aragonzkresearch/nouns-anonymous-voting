@@ -1,0 +1,5 @@
+[package]
+authors = ["AZKR Team"]
+compiler_version = "0.5.1"
+
+[dependencies]
