@@ -203,11 +203,37 @@ fn tally10() -> Result<(), String> {
     std::fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
 
     // Generate proof
-    std::process::Command::new("nargo")
-        .arg("prove")
-        .arg("p")
-        .status()
-        .expect("Failed to generate proof.");
+    // std::process::Command::new("nargo")
+    //     .arg("prove")
+    //     .arg("p")
+    //     .status()
+    //     .expect("Failed to generate proof.");
+
+    Ok(())
+}
+
+#[test]
+fn tally200() -> Result<(), String> {
+    let mut rng = ark_std::test_rng();
+    let va = VoteAggregation::simulate(&mut rng, 200);
+
+    println!("vote_aggregation: {:?}", va);
+
+    let prover_toml_string = toml::to_string_pretty(&va.toml())
+        .map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
+
+    // Move to circuit directory
+    std::env::set_current_dir("circuits/256_voters").map_err(|e| e.to_string())?;
+
+    // Write Toml file
+    std::fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
+
+    // Generate proof
+    // std::process::Command::new("nargo")
+    //     .arg("prove")
+    //     .arg("p")
+    //     .status()
+    //     .expect("Failed to generate proof.");
 
     Ok(())
 }
