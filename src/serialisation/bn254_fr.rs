@@ -1,7 +1,7 @@
+use crate::election::{ElectionIdentifier, VoteChoice};
+use crate::{BBJJ_Fr, BN254_Fr, BBJJ_G1};
 use ark_ff::{BigInt, BigInteger};
 use babyjubjub_ark::Signature;
-use crate::election::{ElectionIdentifier, VoteChoice};
-use crate::{BN254_Fr, BBJJ_G1, BBJJ_Fr};
 
 use crate::preprover::StorageProof;
 use crate::serialisation::Wrapper;
@@ -15,7 +15,7 @@ impl Into<Vec<BN254_Fr>> for StorageProof {
 impl Into<BN254_Fr> for Wrapper<BBJJ_Fr> {
     fn into(self) -> BN254_Fr {
         // As BN254_Fr == BBJJ_Fq > BBJJ_Fr the value fits in the new field
-        BN254_Fr::new(self.0.0)
+        BN254_Fr::new(self.0 .0)
     }
 }
 
@@ -53,7 +53,6 @@ impl Into<Vec<BN254_Fr>> for ElectionIdentifier {
 
 // Implement conversion trait for Vote to F
 impl Into<BN254_Fr> for VoteChoice {
-
     fn into(self) -> BN254_Fr {
         match self {
             VoteChoice::Yes => BN254_Fr::from(0u8),

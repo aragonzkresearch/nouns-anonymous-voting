@@ -1,5 +1,5 @@
 [package]
-name = "nouns-voting-client"
+name = "nouns-voting-proofs"
 version = "0.1.0"
 edition = "2021"
 authors = ["AZKR Team"]
@@ -21,4 +21,7 @@ babyjubjub-ark = { git="https://github.com/arnaucube/babyjubjub-ark", features =
 # OTHER DEPENDENCIES
 hex = "^0.4.0"
 toml = "0.7.3"
+web3 = "0.18.0"
+strum = "0.24.1"
+strum_macros = "0.24.3"
 
