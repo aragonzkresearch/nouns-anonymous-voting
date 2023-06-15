@@ -12,7 +12,7 @@ contract ZKRegistryScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        ZKRegistry zkRegistry = new ZKRegistry();
+        new ZKRegistry();
 
         vm.stopBroadcast();
     }

@@ -13,6 +13,8 @@
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "lib/openzeppelin-contracts"]
 	branch = v4.9.1
-[submodule "contracts/lib/Base64.sol"]
-	path = contracts/lib/Base64.sol
-	url = https://github.com/BlockChainCaffe/Base64.sol
+[submodule "contracts/lib/base64"]
+	path = contracts/lib/base64
+	url = https://github.com/Brechtpd/base64
+[submodule "lib/base64"]
+	branch = v1.1.0

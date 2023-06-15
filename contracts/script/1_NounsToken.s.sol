@@ -18,13 +18,16 @@ contract ZKRegistryScript is Script {
 
         NounsDescriptor nounsDescriptor = new NounsDescriptor();
         NounsSeeder nounsSeeder = new NounsSeeder();
+        // Set 0x0 address as proxy address, since we don't need it for our purposes
+        // This address is only used for the OpenSea integration
+        IProxyRegistry proxyRegistry = IProxyRegistry(address(0x0));
 
-        NounsToken nounsToken = new NounsToken(
+        new NounsToken(
             deployerAddress, // owner
             deployerAddress, // minter
-            address(nounsDescriptor),
-            address(nounsSeeder),
-            address(0x0) // Proxy address is only used for OpenSea integration, not needed for our purposes
+            nounsDescriptor,
+            nounsSeeder,
+            proxyRegistry
         );
 
         vm.stopBroadcast();
