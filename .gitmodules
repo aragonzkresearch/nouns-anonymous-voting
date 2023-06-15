@@ -8,3 +8,6 @@
 	url = https://github.com/nounsDAO/nouns-monorepo
 [submodule "lib/nouns-monorepo"]
 	branch = 1.0.0
+[submodule "contracts/lib/Base64.sol"]
+	path = contracts/lib/Base64.sol
+	url = https://github.com/BlockChainCaffe/Base64.sol
