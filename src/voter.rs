@@ -68,9 +68,9 @@ impl Voter {
             ]
         ])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
-        let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
-        let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
-        let p_3 = StorageProof::new(vec![]); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
+        let p_1 = StorageProof {proof: vec![[0].into_iter().collect::<ethers::prelude::Bytes>()], key: [0u8;32].into(), value: 0.into()}; // TODO // Storage Prove of NFT ownership by voter address
+        let p_2 = p_1.clone(); // TODO // Storage Prove that NFT has not been delegated
+        let p_3 = p_1.clone(); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
 
         let proverPackage = VoteProverPackage {
             public_input: PublicInput {

@@ -16,10 +16,24 @@ pub trait TomlSerializable {
 impl TomlSerializable for StorageProof {
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        let depth = self.depth;
+        let depth = self.proof.len();
+        ////////
+        // TODO: Move these checks
+        // Make sure MAX_DEPTH has not been exceeded
+        assert!(
+            depth <= MAX_DEPTH,
+            "The maximum possible proof depth ({}) has been exceeded!",
+            MAX_DEPTH
+        );
         map.insert("depth".to_string(), depth.toml());
 
-        let path = self.path;
+        // Make sure path is valid
+        self.proof.iter().for_each(|node| {
+            assert!(node.len() <= MAX_NODE_LEN, "Invalid node!");
+        });
+        ////////
+        
+        let path = self.proof.into_iter().map(|b| { b.to_vec() }).collect::<Vec<_>>();
 
         // Proof path needs to be an appropriately padded flat array.
         let padded_path = path
@@ -38,7 +52,13 @@ impl TomlSerializable for StorageProof {
             })
             .flatten()
             .collect::<Vec<u8>>(); // And flatten.
-        map.insert("path".to_string(), padded_path.toml());
+        map.insert("proof".to_string(), padded_path.toml());
+
+        let key: [u8; 32] = self.key.into();
+        let value: [u8;32] = self.value.into();
+
+        map.insert("key".to_string(), key.to_vec().toml());
+        map.insert("value".to_string(), value.to_vec().toml());
 
         Value::Table(map)
     }

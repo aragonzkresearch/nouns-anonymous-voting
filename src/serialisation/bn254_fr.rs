@@ -6,12 +6,6 @@ use babyjubjub_ark::Signature;
 use crate::preprover::StorageProof;
 use crate::serialisation::Wrapper;
 
-impl Into<Vec<BN254_Fr>> for StorageProof {
-    fn into(self) -> Vec<BN254_Fr> {
-        vec![]
-    }
-}
-
 impl Into<BN254_Fr> for Wrapper<BBJJ_Fr> {
     fn into(self) -> BN254_Fr {
         // As BN254_Fr == BBJJ_Fq > BBJJ_Fr the value fits in the new field

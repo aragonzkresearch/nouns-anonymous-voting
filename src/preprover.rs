@@ -1,32 +1,8 @@
 #![allow(non_snake_case)]
 
 use crate::election::{ElectionIdentifier, VoteChoice};
-use crate::MAX_DEPTH;
-use crate::MAX_NODE_LEN;
 use crate::{BBJJ_Fr, BN254_Fr, Signature, BBJJ_G1};
-
-#[derive(Debug)]
-pub struct StorageProof {
-    pub(crate) path: Vec<Vec<u8>>,
-    pub(crate) depth: usize,
-}
-
-impl StorageProof {
-    pub fn new(path: Vec<Vec<u8>>) -> Self {
-        let depth = path.len();
-        // More checks necessary in reality, but these will catch obviously invalid proofs.
-        assert!(
-            depth <= MAX_DEPTH,
-            "The maximum possible proof depth ({}) has been exceeded!",
-            MAX_DEPTH
-        );
-        path.iter().for_each(|node| {
-            assert!(node.len() <= MAX_NODE_LEN, "Invalid node!");
-        });
-
-        StorageProof { path, depth }
-    }
-}
+pub use ethers::prelude::StorageProof;
 
 #[derive(Debug)]
 pub struct PublicInput {

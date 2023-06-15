@@ -2,6 +2,7 @@
 
 extern crate core;
 
+mod contract;
 mod election;
 mod preprover;
 mod serialisation;

@@ -5,18 +5,12 @@ use dep::std::ec::tecurve::affine::Point;
 use dep::std::eddsa::eddsa_poseidon_verify as eddsa_verify;
 use dep::std::hash::poseidon::bn254;
 use dep::std::ec::consts::te::baby_jubjub;
+use dep::trie::TrieProof32;
 
 global MAX_BITS: Field = 256; // Required for bit representation of BJJ associated field element
 global DEPTH8_PROOF_SIZE: Field = 4256;
 
 // Data types
-// TODO: Use storage proof library
-struct StorageProof<MAX_PROOF_SIZE>
-{
-    path: [u8; MAX_PROOF_SIZE],
-    depth: Field
-}
-
 struct Signature {
     r_b8: Point,
     s: Field,
@@ -45,9 +39,9 @@ struct VoteProverPackage<MAX_PROOF_SIZE> {
     sigma: Signature,
     tau: Signature,
     rck: Point,
-    p_1: StorageProof<MAX_PROOF_SIZE>,
-    p_2: StorageProof<MAX_PROOF_SIZE>,
-    p_3: StorageProof<MAX_PROOF_SIZE>,
+    p_1: TrieProof32<MAX_PROOF_SIZE, 32>,
+    p_2: TrieProof32<MAX_PROOF_SIZE, 32>,
+    p_3: TrieProof32<MAX_PROOF_SIZE, 32>,
 }
 
 fn main(
@@ -64,9 +58,9 @@ fn main(
     sigma: [Field; 3],
     tau: [Field; 3],
     rck: [Field; 2],
-    p_1: StorageProof<DEPTH8_PROOF_SIZE>,
-    p_2: StorageProof<DEPTH8_PROOF_SIZE>,
-    p_3: StorageProof<DEPTH8_PROOF_SIZE>
+    p_1: TrieProof32<DEPTH8_PROOF_SIZE, 32>,
+    p_2: TrieProof32<DEPTH8_PROOF_SIZE, 32>,
+    p_3: TrieProof32<DEPTH8_PROOF_SIZE, 32>
 ) {
     let vote_package = VoteProverPackage { a: Point::new(a[0],a[1]),
                                      b,
