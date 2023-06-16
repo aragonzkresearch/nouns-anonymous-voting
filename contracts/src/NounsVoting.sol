@@ -6,7 +6,7 @@ import "./ZKRegistry.sol";
 import "./INoirVerifier.sol";
 import "./Poseidon.sol";
 
-contract NounsVotingContract {
+contract NounsVoting {
 
 
     struct VotingProcess {
@@ -65,9 +65,6 @@ contract NounsVotingContract {
     /// The Poseidon Hash contract address
     Poseidon2 poseidon2;
 
-    /// The current chain id
-    uint256 public chainId;
-
     mapping (uint256 => VotingProcess) public votingProcesses;
     uint256 public voteId = 0;
 
@@ -76,25 +73,23 @@ contract NounsVotingContract {
         ZKRegistry _zkRegistry,
         INoirVerifier _voteVerifier,
         INoirVerifier _tallyVerifier,
-        PoseidonFactory poseidonFactory,
-        uint256 _chainId
+        Poseidon2 _poseidon
     ) {
 
         nounsToken = _nounsToken;
         zkRegistry = _zkRegistry;
-        chainId = _chainId;
 
         voteVerifier = _voteVerifier;
         tallyVerifier = _tallyVerifier;
 
-        poseidon2 = poseidonFactory.poseidon2();
+        poseidon2 = _poseidon;
     }
 
     /// @notice This function is called to generate a new voting process
     /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
     /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
     /// @param endBlock The block number at which the voting process will end
-    /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We use the BabyJubJub curve for public/private key encryption, represented in Affine coordinates {x, y}.
+    /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We use the BabyJubJub curve for public/private key encryption, represented in Affine coordinates {x, y}. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @dev The storage roots should be for the same block
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract. This will be done in a future version.
     /// @return The id of the voting process
@@ -123,7 +118,7 @@ contract NounsVotingContract {
     /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
     /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
     /// @param endBlock The block number at which the voting process will end
-    /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future
+    /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @param target The target address on which the action will be executed
     /// @param funcSignature The function signature of the action to be executed after the voting process ends
     /// @param args The function arguments of the action to be executed after the voting process ends
@@ -289,6 +284,11 @@ contract NounsVotingContract {
         bytes calldata proof
     ) internal returns(bool) {
 
+
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
 
         public_args.push(bytesToBytes32(abi.encode(a)));
         public_args.push(bytesToBytes32(abi.encode(b)));

@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "../src/ZKRegistry.sol";
 
 contract ZKRegistryScript is Script {
+
     function setUp() public {}
 
     function run() public {
