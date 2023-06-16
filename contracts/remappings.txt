@@ -1,0 +1,3 @@
+nouns/=lib/nouns-monorepo/packages/nouns-contracts/contracts/
+@openzeppelin/=lib/openzeppelin-contracts/
+base64-sol=lib/base64/
