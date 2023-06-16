@@ -14,6 +14,12 @@ fn verify_tally<N>(
 {
     let mut b = [0; N];
 
+    // Check validity of votes
+    for x in v
+    {
+        assert(x*(x-1)*(x-2) == 0);
+    }
+
     // Compute b
     for i in 0..N
     {

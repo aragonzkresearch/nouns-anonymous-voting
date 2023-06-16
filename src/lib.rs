@@ -29,7 +29,7 @@ use ark_std::UniformRand;
 
 use std::fs;
 
-pub fn run() -> Result<(), String> {
+pub async fn run() -> Result<(), String> {
     let mut rng = ark_std::test_rng();
     let voter = Voter::mock(&mut rng);
 
@@ -38,7 +38,7 @@ pub fn run() -> Result<(), String> {
     let vote_choice = VoteChoice::Yes;
 
     let vote_package =
-        voter.package_vote_for_proving(&mut rng, &election_params, &vote_choice, &nft_id)?;
+        voter.package_vote_for_proving(&mut rng, &election_params, &vote_choice, &nft_id).await?;
 
     // Debug print the vote package
     println!("vote_package: {:?}", vote_package);
