@@ -2,6 +2,7 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use poseidon_ark::Poseidon;
+use ethers::prelude::{Address, Bytes};
 
 use crate::election::{ElectionParams, VoteChoice};
 use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
@@ -11,22 +12,24 @@ use crate::{concat_vec, BBJJ_Fr, BBJJ_Pr_Key, BN254_Fr, B8, BBJJ_G1};
 
 /// Represents the Voter Account
 pub struct Voter {
+    address: Address, // TODO
+    private_key: Bytes, // TODO
     rck: BBJJ_Pr_Key, // Secret Registry Key of voter i
 }
 
 impl Mock for Voter {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         // Generate a random Vec of bytes length 32
-        Voter::new(BBJJ_Pr_Key::mock(rng))
+        Voter::new("0x0000000000000000000000000000000000000000".parse().unwrap(), "0x00".parse().unwrap(), BBJJ_Pr_Key::mock(rng)) // TODO
     }
 }
 
 impl Voter {
-    pub fn new(private_key: BBJJ_Pr_Key) -> Self {
-        Voter { rck: private_key }
+    pub fn new(address: Address, private_key: Bytes, rck: BBJJ_Pr_Key) -> Self {
+        Voter { address, private_key, rck}
     }
 
-    pub fn package_vote_for_proving<R: Rng>(
+    pub async fn package_vote_for_proving<R: Rng>(
         &self,
         rng: &mut R,
         election_params: &ElectionParams,
@@ -68,9 +71,9 @@ impl Voter {
             ]
         ])?; // Poseidon(K_i, vote_choice, election_params.identifier);
 
-        let p_1 = StorageProof::new(vec![]); // TODO // Storage Prove of NFT ownership by voter address
-        let p_2 = StorageProof::new(vec![]); // TODO // Storage Prove that NFT has not been delegated
-        let p_3 = StorageProof::new(vec![]); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
+        let p_1 = StorageProof {proof: vec![[0].into_iter().collect::<ethers::prelude::Bytes>()], key: [0u8;32].into(), value: 0.into()}; // TODO // Storage Prove of NFT ownership by voter address
+        let p_2 = p_1.clone(); // TODO // Storage Prove that NFT has not been delegated
+        let p_3 = p_1.clone(); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
 
         let proverPackage = VoteProverPackage {
             public_input: PublicInput {

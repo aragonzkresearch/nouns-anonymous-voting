@@ -68,7 +68,7 @@ impl VoteAggregation {
             .iter()
             .zip(k.iter())
             .map(|(b, k)| {
-                VoteChoice::iter() // TODO: Use strum::EnumIter
+                VoteChoice::iter()
                     .filter(|v| {
                         poseidon
                             .hash(concat_vec![
@@ -93,7 +93,7 @@ impl VoteAggregation {
         Self::new(b_k, election_id, vote_count, k, v)
     }
     // Mock aggregation with 2000 voters
-    fn simulate<R: Rng>(rng: &mut R, num_voters: usize) -> Self {
+    fn simulate<R: Rng>(rng: &mut R, num_voters: usize) -> Self { // TODO: async
         let poseidon = Poseidon::new();
 
         let sk_t = BBJJ_Fr::from_be_bytes_mod_order(&BBJJ_Pr_Key::mock(rng).key);
@@ -109,12 +109,13 @@ impl VoteAggregation {
         let voter_pkg = (0..num_voters)
             .map(|_| {
                 let voter = Voter::mock(rng);
-                voter
-                    .package_vote_for_proving(rng, &election_params, &vote_choice, &nft_id)
+                futures::executor::block_on(voter // TODO: async
+                    .package_vote_for_proving(rng, &election_params, &vote_choice, &nft_id))
                     .expect("Error generating voter proof package.")
             })
             .collect::<Vec<VoteProverPackage>>();
 
+        
         let a = voter_pkg
             .iter()
             .map(|pkg| pkg.public_input.a.clone())
