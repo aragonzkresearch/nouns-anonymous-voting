@@ -100,3 +100,21 @@ impl Voter {
         return Ok(proverPackage);
     }
 }
+
+/// Voters key actions
+impl Voter {
+    
+    /// Registers the voter's public BabyJubJub key on the registry contract
+    pub(crate) fn register_bbjj_key() {
+        unimplemented!()
+    }
+    
+    /// Submits a vote to the voting contract
+    pub(crate) fn submit_vote() {
+        unimplemented!()
+    }
+}
+
+impl Voter {
+    
+}

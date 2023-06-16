@@ -93,7 +93,8 @@ impl VoteAggregation {
         Self::new(b_k, election_id, vote_count, k, v)
     }
     // Mock aggregation with 2000 voters
-    fn simulate<R: Rng>(rng: &mut R, num_voters: usize) -> Self { // TODO: async
+    fn simulate<R: Rng>(rng: &mut R, num_voters: usize) -> Self {
+        // TODO: async
         let poseidon = Poseidon::new();
 
         let sk_t = BBJJ_Fr::from_be_bytes_mod_order(&BBJJ_Pr_Key::mock(rng).key);
@@ -115,7 +116,6 @@ impl VoteAggregation {
             })
             .collect::<Vec<VoteProverPackage>>();
 
-        
         let a = voter_pkg
             .iter()
             .map(|pkg| pkg.public_input.a.clone())
@@ -237,4 +237,12 @@ fn tally200() -> Result<(), String> {
     //     .expect("Failed to generate proof.");
 
     Ok(())
+}
+
+
+struct Tallier {}
+
+impl Tallier {
+    
+    
 }

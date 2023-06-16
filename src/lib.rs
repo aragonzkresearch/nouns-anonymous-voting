@@ -2,13 +2,13 @@
 
 extern crate core;
 
-mod contract;
-mod election;
-mod preprover;
-mod serialisation;
 mod utils;
-mod vote_aggregation;
+
 mod voter;
+mod tallier;
+mod proposer;
+
+mod services;
 
 // Useful constants for storage proofs
 pub(crate) const MAX_NODE_LEN: usize = 532; // The maximum byte length of a node
