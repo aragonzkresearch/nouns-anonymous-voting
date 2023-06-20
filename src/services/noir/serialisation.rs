@@ -1,4 +1,3 @@
-mod bn254_fr;
 pub mod toml;
 
 #[macro_export]

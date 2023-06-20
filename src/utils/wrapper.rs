@@ -1,6 +1,6 @@
-use ark_ff::{BigInteger, Fp256, MontBackend, MontConfig, PrimeField};
+use ark_ff::{BigInteger, PrimeField};
 use ethers::abi::Address;
-use ethers::core::k256::elliptic_curve::bigint::{ArrayEncoding, Encoding};
+use ethers::core::k256::elliptic_curve::bigint::Encoding;
 use ethers::core::k256::U256;
 
 use crate::{BBJJ_Fr, BN254_Fr};
@@ -28,6 +28,17 @@ impl From<Wrapper<U256>> for BN254_Fr {
         );
         // Convert the U256 to a BN254_Fr.
         Self::from_be_bytes_mod_order(&value.0.to_be_bytes())
+    }
+}
+
+impl From<Wrapper<U256>> for [BN254_Fr; 2] {
+    fn from(value: Wrapper<U256>) -> Self {
+        // Convert the most significant 128 bits of the U256 to a BN254_Fr.
+        let mut fr1 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[0..16]);
+        // Convert the least significant 128 bits of the U256 to a BN254_Fr.
+        let mut fr2 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[16..32]);
+        // Return the BN254_Fr array.
+        [fr1, fr2]
     }
 }
 

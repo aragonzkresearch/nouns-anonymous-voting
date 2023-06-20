@@ -72,6 +72,10 @@ impl Voter {
 
 #[derive(Debug, Clone, Default)]
 /// Ethereum state proof for a single storage slot
-pub(crate) struct StateProof {}
+pub(crate) struct StateProof {
+    pub(crate) storage_proof: StorageProof,
+    pub(crate) account_proof: Vec<Bytes>,
+    // TODO: add other block parameters
+}
 
 struct BallotWithProof {}

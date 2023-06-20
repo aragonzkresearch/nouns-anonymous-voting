@@ -3,7 +3,9 @@ use ethers::types::Address;
 
 use crate::BBJJ_Ec;
 
-mod mock;
+#[cfg(test)]
+pub(crate) mod mock;
+
 pub(crate) mod wrapper;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

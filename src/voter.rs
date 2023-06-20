@@ -68,20 +68,20 @@ pub(crate) struct BallotHints {
 
 impl Voter {
     /// Generate a vote for given parameters
-    pub(crate) async fn gen_vote<R: Rng>(
+    pub(crate) fn gen_vote<R: Rng>(
         &self,
-        nft_id: &U256,
-        v: &VoteChoice,
+        nft_id: U256,
+        v: VoteChoice,
         process_params: &ProcessParameters,
         state_proofs: (StateProof, StateProof),
         rng: &mut R,
     ) -> Result<BallotWithProof, String> {
         // Convert the parameters to the correct field
-        let nft_id: BN254_Fr = Wrapper(*nft_id).into();
-        let v: BN254_Fr = Wrapper(U256::from(u8::from(*v))).into();
+        let nft_id: [BN254_Fr; 2] = Wrapper(nft_id).into();
+        let v: BN254_Fr = Wrapper(U256::from(u8::from(v))).into();
         let process_id: BN254_Fr = Wrapper(process_params.process_id).into();
         let contract_addr: BN254_Fr = Wrapper(process_params.contract_addr).into();
-        let chain_id: BN254_Fr = Wrapper(process_params.chain_id).into();
+        let chain_id: [BN254_Fr; 2] = Wrapper(process_params.chain_id).into();
 
         // Prepare the inputs for the Noir circuit vote prover circuit
         let (ballot, ballot_hints) = self.gen_ballot_with_hints(
@@ -117,7 +117,7 @@ impl Voter {
             nft_ownership_proof: state_proofs.1,
         };
 
-        let proof = noir::prove_vote(noir_input).await?;
+        let proof = noir::prove_vote(noir_input)?;
 
         let ballot_with_proof = BallotWithProof { ballot, proof };
 
@@ -128,18 +128,25 @@ impl Voter {
     /// The prover hints will be used by the Noir Vote Prover to generate the proof of ballot correctness
     pub(crate) fn gen_ballot_with_hints<R: Rng>(
         &self,
-        nft_id: BN254_Fr,
+        nft_id: [BN254_Fr; 2],
         v: BN254_Fr,
         process_id: BN254_Fr,
         contract_addr: BN254_Fr,
-        chain_id: BN254_Fr,
+        chain_id: [BN254_Fr; 2],
         tlcs_pk: BBJJ_Ec,
         rng: &mut R,
     ) -> Result<(Ballot, BallotHints), String> {
         let poseidon = Poseidon::new();
 
         // Generate the hash of the id of the vote and then sign it to prevent malleability
-        let id_hash = poseidon.hash(vec![nft_id, chain_id, process_id, contract_addr])?;
+        let id_hash = poseidon.hash(vec![
+            nft_id[0],
+            nft_id[1],
+            chain_id[0],
+            chain_id[1],
+            process_id,
+            contract_addr,
+        ])?;
         let signed_id = self.registered_sk.sign(id_hash)?; // `sigma = DS.Sign(registry_key, election_params.identifier)`
 
         // Sign the hashed vote choice to prevent malleability
@@ -164,7 +171,15 @@ impl Voter {
 
         // Generate B as a hash of the point K, the vote choice and the id of the vote
         // Note that the id of the vote is public, so the moment `k` is revealed, the vote choice can be bruteforced
-        let b = poseidon.hash(vec![k.x, k.y, v, chain_id, process_id, contract_addr])?; // `B = Poseidon(K_i, vote_choice, election_params.identifier)`
+        let b = poseidon.hash(vec![
+            k.x,
+            k.y,
+            v,
+            chain_id[0],
+            chain_id[1],
+            process_id,
+            contract_addr,
+        ])?; // `B = Poseidon(K_i, vote_choice, election_params.identifier)`
 
         return Ok((
             Ballot {
@@ -197,8 +212,31 @@ impl Voter {
 
 #[cfg(test)]
 mod test {
+    use ethers::core::k256::U256;
+    use ethers::types::StorageProof;
+
+    use crate::services::ethereum::StateProof;
+    use crate::utils::mock::Mock;
+    use crate::utils::{ProcessParameters, VoteChoice};
+    use crate::voter::Voter;
+
     #[test]
     fn test() {
         println!("Hello world")
+    }
+
+    #[test]
+    fn test_vote_gen() {
+        let rng = &mut ark_std::test_rng();
+
+        let voter = Voter::mock(rng);
+
+        let proof = voter.gen_vote(
+            U256::from_u64(1),
+            VoteChoice::mock(rng),
+            &ProcessParameters::mock(rng),
+            (StateProof::mock(rng), StateProof::mock(rng)),
+            rng,
+        );
     }
 }
