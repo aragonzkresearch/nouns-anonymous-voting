@@ -1,21 +1,23 @@
+use std::collections::HashMap;
+
+use ethers::prelude::*;
+
+// TODO: Delegation
+use crate::voter::Voter;
+
 mod nouns_nft;
 mod nouns_voting;
 mod zk_registry;
 
-// TODO: Delegation
-use crate::voter::Voter;
-use ethers::prelude::*;
-use std::collections::HashMap;
-
 // Enumeration of relevant smart contracts including addresses
 #[derive(Eq, Hash, PartialEq)]
-enum Contract {
+pub enum Contract {
     ZKRegistry,
     Voting,
 }
 
 // Relevant contract parameters
-struct ContractParam {
+pub struct ContractParam {
     address: HashMap<Contract, Address>,
     block_hash: H256, // Block hash at cut-off
 }
@@ -67,3 +69,9 @@ impl Voter {
         todo!()
     }
 }
+
+#[derive(Debug, Clone, Default)]
+/// Ethereum state proof for a single storage slot
+pub(crate) struct StateProof {}
+
+struct BallotWithProof {}

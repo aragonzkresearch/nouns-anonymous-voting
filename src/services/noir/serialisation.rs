@@ -13,6 +13,3 @@ macro_rules! concat_vec {
         }
     };
 }
-
-/// A wrapper type for defining serialisation traits for types that are not defined in this crate.
-pub struct Wrapper<T>(pub T);

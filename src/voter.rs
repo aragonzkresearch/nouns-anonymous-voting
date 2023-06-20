@@ -1,120 +1,204 @@
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
+use babyjubjub_ark::{Signature, B8};
+use ethers::core::k256::U256;
+use ethers::prelude::Address;
 use poseidon_ark::Poseidon;
-use ethers::prelude::{Address, Bytes};
 
-use crate::election::{ElectionParams, VoteChoice};
-use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
-use crate::serialisation::Wrapper;
-use crate::utils::Mock;
-use crate::{concat_vec, BBJJ_Fr, BBJJ_Pr_Key, BN254_Fr, B8, BBJJ_G1};
+use crate::services::ethereum::StateProof;
+use crate::services::noir;
+use crate::utils::wrapper::Wrapper;
+use crate::utils::{ProcessParameters, VoteChoice};
+use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, BBJJ_G1};
 
-/// Represents the Voter Account
+/// Represents the Voter who votes in the process
+/// Note that we do not need to know that private key corresponding to the eth_addr
+/// By finding the `pbk` registered under the `address` it implies that the
+/// Owner of the address (and corresponding NFTs) delegated the voting right
+/// to whoever knows the `sk` for the `pbk` in the `zkRegistry`
 pub struct Voter {
-    address: Address, // TODO
-    private_key: Bytes, // TODO
-    rck: BBJJ_Pr_Key, // Secret Registry Key of voter i
-}
-
-impl Mock for Voter {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        // Generate a random Vec of bytes length 32
-        Voter::new("0x0000000000000000000000000000000000000000".parse().unwrap(), "0x00".parse().unwrap(), BBJJ_Pr_Key::mock(rng)) // TODO
-    }
+    /// The Ethereum Address that the `pbk` is registered under
+    eth_addr: Address,
+    /// Secret Key (`sk`) of the Public Key (`pbk`) that is registered under the `address` in zkRegistry
+    /// As we are using BBJJ this key should be registered in the `BBJJ` interface.
+    registered_sk: babyjubjub_ark::PrivateKey,
 }
 
 impl Voter {
-    pub fn new(address: Address, private_key: Bytes, rck: BBJJ_Pr_Key) -> Self {
-        Voter { address, private_key, rck}
+    pub fn new(address: Address, rck: babyjubjub_ark::PrivateKey) -> Self {
+        Voter {
+            eth_addr: address,
+            registered_sk: rck,
+        }
     }
+}
 
-    pub async fn package_vote_for_proving<R: Rng>(
+/// Represents the ballot that the voter casts
+pub struct Ballot {
+    /// The first part of the encrypted vote
+    pub(crate) a: BBJJ_Ec,
+    /// The second part of the encrypted vote
+    pub(crate) b: BN254_Fr,
+    /// The nullifier of the encrypted vote, to prevent double voting
+    pub(crate) n: BN254_Fr,
+    /// The hash of the id of the vote, to prevent malleability
+    pub(crate) h_id: BN254_Fr,
+}
+
+/// Represents the ballot that the voter casts
+/// With an attached proof that the ballot is valid
+pub struct BallotWithProof {
+    /// The ballot that the voter casts
+    ballot: Ballot,
+    /// Ballot correctness proof, represented as a vector of bytes
+    proof: Vec<u8>,
+}
+
+/// Represents the hints that were generated while constructing the ballot
+/// that the prover needs to generate the proof for ballot correctness
+pub(crate) struct BallotHints {
+    /// `sigma` representing the signature over the id of the vote
+    signed_id: Signature,
+    /// `tau` representing the signature over the vote choice
+    signed_v: Signature,
+    /// `k` representing the bliding factor of the vote
+    k: BBJJ_Ec,
+}
+
+impl Voter {
+    /// Generate a vote for given parameters
+    pub(crate) async fn gen_vote<R: Rng>(
         &self,
-        rng: &mut R,
-        election_params: &ElectionParams,
+        nft_id: &U256,
         v: &VoteChoice,
-        nft_id: &BN254_Fr,
-    ) -> Result<VoteProverPackage, String> {
-        let poseidon = Poseidon::new();
+        process_params: &ProcessParameters,
+        state_proofs: (StateProof, StateProof),
+        rng: &mut R,
+    ) -> Result<BallotWithProof, String> {
+        // Convert the parameters to the correct field
+        let nft_id: BN254_Fr = Wrapper(*nft_id).into();
+        let v: BN254_Fr = Wrapper(U256::from(u8::from(*v))).into();
+        let process_id: BN254_Fr = Wrapper(process_params.process_id).into();
+        let contract_addr: BN254_Fr = Wrapper(process_params.contract_addr).into();
+        let chain_id: BN254_Fr = Wrapper(process_params.chain_id).into();
 
-        // Generate signatures for the vote and nullifier using the voter's registry key
-        // Note that we first hash the messages and only then sign them
-        let id_hash = poseidon.hash(vec![
-            *nft_id,
-            election_params.id.chain_id,
-            election_params.id.process_id,
-            election_params.id.contract_addr,
-        ])?;
-        let sigma = self.rck.sign(id_hash)?; // DS.Sign(registry_key, election_params.identifier);
-        let vote_choice_message = poseidon.hash(vec![v.clone().into()])?;
-        let tau = self.rck.sign(vote_choice_message)?; // DS.Sign(registry_key, vote_choice);
+        // Prepare the inputs for the Noir circuit vote prover circuit
+        let (ballot, ballot_hints) = self.gen_ballot_with_hints(
+            nft_id,
+            v,
+            process_id,
+            contract_addr,
+            chain_id,
+            process_params.tcls_pk.clone(),
+            rng,
+        )?;
 
-        // Generate the nullifier
-        let nullifier = poseidon.hash(vec![
-            sigma.r_b8.x,
-            sigma.r_b8.y,
-            BN254_Fr::from_be_bytes_mod_order(&sigma.s.into_bigint().to_bytes_be()),
-        ])?; // Poseidon(sigma, election_params.identifier);
-
-        let r = BBJJ_Fr::rand(rng);
-        let a: BBJJ_G1 = B8.mul_scalar(&r); // A = g^r_i in multiplicative notation
-        let k: BBJJ_G1 = election_params.tlock.pk_t.mul_scalar(&r); // K = PK_t^r_i in multiplicative notation
-
-        let b = poseidon.hash(concat_vec![
-            <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())),
-            vec![
-                v.clone().into(),
-                election_params.id.chain_id,
-                election_params.id.process_id,
-                election_params.id.contract_addr
-            ]
-        ])?; // Poseidon(K_i, vote_choice, election_params.identifier);
-
-        let p_1 = StorageProof {proof: vec![[0].into_iter().collect::<ethers::prelude::Bytes>()], key: [0u8;32].into(), value: 0.into()}; // TODO // Storage Prove of NFT ownership by voter address
-        let p_2 = p_1.clone(); // TODO // Storage Prove that NFT has not been delegated
-        let p_3 = p_1.clone(); // TODO // Storage Prove that g^RK_i is in the registry under the voter's address
-
-        let proverPackage = VoteProverPackage {
-            public_input: PublicInput {
-                a,
-                b,
-                nullifier,
-                id_hash,
-                election_id: election_params.id.clone(),
-                r,
-            },
-            private_input: PrivateInput {
-                k,
-                nft_id: nft_id.clone(),
-                v: v.clone(),
-                sigma,
-                tau,
-                rck: self.rck.public(),
-                p_1,
-                p_2,
-                p_3,
-            },
+        let noir_input = noir::VoteProverInput {
+            // Public inputs
+            a: ballot.a.clone(),
+            b: ballot.b,
+            n: ballot.n,
+            h_id: ballot.h_id,
+            process_id,
+            contract_addr,
+            chain_id,
+            eth_block_hash: Wrapper(process_params.eth_block_hash).into(),
+            tcls_pk: process_params.tcls_pk.clone(),
+            // Private inputs
+            v,
+            signed_id: ballot_hints.signed_id,
+            voter_address: Wrapper(self.eth_addr).into(),
+            signed_v: ballot_hints.signed_v,
+            nft_id,
+            k: ballot_hints.k,
+            registered_pbk: self.registered_sk.public(),
+            registry_key_sp: state_proofs.0,
+            nft_ownership_proof: state_proofs.1,
         };
 
-        return Ok(proverPackage);
+        let proof = noir::prove_vote(noir_input).await?;
+
+        let ballot_with_proof = BallotWithProof { ballot, proof };
+
+        Ok(ballot_with_proof)
+    }
+
+    /// Generate a vote ballot with prover hints for given vote parameters
+    /// The prover hints will be used by the Noir Vote Prover to generate the proof of ballot correctness
+    pub(crate) fn gen_ballot_with_hints<R: Rng>(
+        &self,
+        nft_id: BN254_Fr,
+        v: BN254_Fr,
+        process_id: BN254_Fr,
+        contract_addr: BN254_Fr,
+        chain_id: BN254_Fr,
+        tlcs_pk: BBJJ_Ec,
+        rng: &mut R,
+    ) -> Result<(Ballot, BallotHints), String> {
+        let poseidon = Poseidon::new();
+
+        // Generate the hash of the id of the vote and then sign it to prevent malleability
+        let id_hash = poseidon.hash(vec![nft_id, chain_id, process_id, contract_addr])?;
+        let signed_id = self.registered_sk.sign(id_hash)?; // `sigma = DS.Sign(registry_key, election_params.identifier)`
+
+        // Sign the hashed vote choice to prevent malleability
+        let vote_choice_message = poseidon.hash(vec![v])?;
+        let signed_v = self.registered_sk.sign(vote_choice_message)?; // `tau = DS.Sign(registry_key, vote_choice)`
+
+        // Generate the nullifier from the signed id hash to prevent double voting
+        let nullifier = poseidon.hash(vec![
+            signed_id.r_b8.x,
+            signed_id.r_b8.y,
+            signed_id.s.into_bigint().into(),
+        ])?; // `n = Poseidon(sigma, election_params.identifier)`
+
+        // Generate a random value r that will be used to generate A and B
+        // It is important to keep this value secret as it is used to keep the vote choice secret until the reveal phase
+        let blinding_factor = BBJJ_Fr::rand(rng);
+        // Generate A as a point on the curve corresponding to the random value r
+        let a: BBJJ_Ec = BBJJ_G1.mul_scalar(&blinding_factor); // `A = g^r in multiplicative notation`
+
+        // Generate K as a TLock public key to the power of r (in multiplicative notation)
+        let k: BBJJ_Ec = tlcs_pk.mul_scalar(&blinding_factor); // `K = PK_t^r in multiplicative notation`
+
+        // Generate B as a hash of the point K, the vote choice and the id of the vote
+        // Note that the id of the vote is public, so the moment `k` is revealed, the vote choice can be bruteforced
+        let b = poseidon.hash(vec![k.x, k.y, v, chain_id, process_id, contract_addr])?; // `B = Poseidon(K_i, vote_choice, election_params.identifier)`
+
+        return Ok((
+            Ballot {
+                a: a.clone(),
+                b,
+                n: nullifier,
+                h_id: id_hash,
+            },
+            BallotHints {
+                signed_id,
+                signed_v,
+                k: k.clone(),
+            },
+        ));
     }
 }
 
-/// Voters key actions
-impl Voter {
-    
-    /// Registers the voter's public BabyJubJub key on the registry contract
-    pub(crate) fn register_bbjj_key() {
-        unimplemented!()
-    }
-    
-    /// Submits a vote to the voting contract
-    pub(crate) fn submit_vote() {
-        unimplemented!()
-    }
-}
+// /// Voters key actions
+// impl Voter {
+//     /// Registers the voter's public BabyJubJub key on the registry contract
+//     pub(crate) fn register_bbjj_key() {
+//         unimplemented!()
+//     }
+//
+//     /// Submits a vote to the voting contract
+//     pub(crate) fn submit_vote() {
+//         unimplemented!()
+//     }
+// }
 
-impl Voter {
-    
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test() {
+        println!("Hello world")
+    }
 }

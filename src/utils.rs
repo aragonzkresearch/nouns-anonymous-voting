@@ -1,32 +1,49 @@
+use ethers::core::k256::U256;
+use ethers::types::Address;
+
+use crate::BBJJ_Ec;
+
 mod mock;
+pub(crate) mod wrapper;
 
-use ark_std::rand::Rng;
-
-/// Mock trait is used to generate mock data for testing
-pub trait Mock {
-    fn mock<R: Rng>(rng: &mut R) -> Self;
-}
-
-#[derive(Debug, Clone, EnumIter, Eq, PartialEq)]
-pub enum VoteChoice {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VoteChoice {
     Yes,
     No,
     Abstain,
 }
 
-
-
-/// Represents the Election Parameters
-pub struct ElectionParams {
-    pub(crate) id: ElectionIdentifier,
-    pub(crate) tlock: TLockParams,
+impl From<u8> for VoteChoice {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Yes,
+            1 => Self::No,
+            2 => Self::Abstain,
+            _ => panic!("Invalid vote choice"),
+        }
+    }
 }
 
+impl From<VoteChoice> for u8 {
+    fn from(value: VoteChoice) -> Self {
+        match value {
+            VoteChoice::Yes => 0,
+            VoteChoice::No => 1,
+            VoteChoice::Abstain => 2,
+        }
+    }
+}
 
-/// Represents the Election Identifiers that uniquely identify an election
-#[derive(Clone, Debug)]
-pub struct ElectionIdentifier {
-    pub(crate) chain_id: BN254_Fr,
-    pub(crate) process_id: BN254_Fr,
-    pub(crate) contract_addr: BN254_Fr,
+/// Represents the parameters of the process that the voter is voting in
+pub(crate) struct ProcessParameters {
+    /// The id of the process
+    pub(crate) process_id: U256,
+    /// The address of the contract that represents the process
+    pub(crate) contract_addr: Address,
+    /// The chain id of the chain that the process is running on
+    pub(crate) chain_id: U256,
+    /// The public key of the tcls for the process decryption time
+    pub(crate) tcls_pk: BBJJ_Ec,
+    /// The hash of the block that the process checkpointed on
+    pub(crate) eth_block_hash: U256,
 }

@@ -24,13 +24,23 @@ use clap::{App, Arg};
 /// 3. The Private Key of the account that owns the NFT
 /// 4. The Vote Choice (Yes/No/Abstain)
 /// 5. TLCS Public Key for the process end time used to encrypt the ballots
-/// 
+///
 /// The `tally` command allows the user to generate the tally for an existing voting process.
 /// It then submits the result to the NounsVoting contract with the proof of the tally.
 /// It should ask the user for the following additional information:
 /// 1. The Voting Process ID it is generating the results for
 /// 2. The TLCS Private Key corresponding to the TLCS Public Key used to encrypt the Ballots
-/// 
-fn main() {
-    
+///
+fn main() {}
+
+fn voter() {
+    // Storage Prove that the voter `address` is mapped to a `pbk` in the registry
+    // We later proof that the `pbk` is the Public Key corresponding to the voters `sk`
+    let registry_key_sp = StateProof::default(); // TODO - get real value
+
+    // Storage Prove that the voter's address owns the NFT
+    let nft_ownership_proof = StateProof::default(); // TODO - get real value
+
+    // Storage Prove that the NFT is or is not delegated
+    // let nft_delegation_proof =  StateProof::default(); // TODO - enable delegation in the future
 }

@@ -28,4 +28,5 @@ toml = "0.7.3"
 strum = "0.24.1"
 strum_macros = "0.24.3"
 futures = "0.3.28"
+rand = "0.8.5"
 
