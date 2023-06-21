@@ -1,15 +1,8 @@
 #![allow(non_snake_case)]
 
-use std::fs;
-
 pub(crate) use ark_bn254::Fr as BN254_Fr;
-use ark_std::UniformRand;
 /// Define the reexported types from the arkworks libraries to be used in this crate
-pub(crate) use babyjubjub_ark::{
-    Fr as BBJJ_Fr, Point as BBJJ_Ec, PrivateKey as BBJJ_Pr_Key, Signature, B8 as BBJJ_G1,
-};
-
-use crate::voter::Voter;
+pub(crate) use babyjubjub_ark::{Fr as BBJJ_Fr, Point as BBJJ_Ec, B8 as BBJJ_G1};
 
 mod utils;
 

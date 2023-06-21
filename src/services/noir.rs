@@ -1,4 +1,7 @@
+use std::fmt::Write;
+
 use babyjubjub_ark::Signature;
+use ethers::types::StorageProof;
 
 use crate::services::ethereum::StateProof;
 use crate::services::noir::serialisation::toml::TomlSerializable;
@@ -16,7 +19,8 @@ pub(crate) struct VoteProverInput {
     pub(crate) process_id: BN254_Fr,
     pub(crate) contract_addr: BN254_Fr,
     pub(crate) chain_id: [BN254_Fr; 2],
-    pub(crate) eth_block_hash: [BN254_Fr; 2],
+    pub(crate) registry_account_state: [BN254_Fr; 2],
+    pub(crate) nft_account_state: [BN254_Fr; 2],
     pub(crate) tcls_pk: BBJJ_Ec,
 
     // Private input for the circuit
@@ -30,11 +34,21 @@ pub(crate) struct VoteProverInput {
     pub(crate) k: BBJJ_Ec,
     /// The public key of the voter's `sk` that is registered in the `BBJJ` interface in the `zkRegistry`
     pub(crate) registered_pbk: BBJJ_Ec,
-    pub(crate) registry_key_sp: StateProof,
-    pub(crate) nft_ownership_proof: StateProof,
+    pub(crate) registry_key_sp: StorageProof,
+    pub(crate) nft_ownership_proof: StorageProof,
 }
 
+/// Generates a proof for a vote
+///
+/// NOTE: This function is currently reliant on the prover being run in the root of the repo
+/// This function is incompatible with the Browser.
+///
+/// Furthermore, the function makes use of the Filesystem and Shell.
+/// For the future, we should consider using a Rust Library implementation of the Noir Prover
+/// When such a library is available, we can remove the dependency on the filesystem and shell
 pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
+    let vote_prover_dir = "circuits/client-proof";
+
     // Serialize the input into a toml string
     let prover_input = input.toml();
 
@@ -48,15 +62,20 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
 
     // Save the input to a file for the prover to read
-    let file_path = "Prover.toml";
+    let file_path = format!("{}/Prover.toml", vote_prover_dir);
+    // If the file does not exist, create it
+    if !std::path::Path::new(&file_path).exists() {
+        std::fs::File::create(&file_path)
+            .map_err(|e| format!("Failed to create input file! Error: {}", e.to_string()))?;
+    }
     std::fs::write(file_path, prover_input_as_string)
         .map_err(|e| format!("Failed to write input to file! Error: {}", e.to_string()))?;
 
     // Run the prover as a shell command `noir prove` in a `noir` subdirectory
-    let output = std::process::Command::new("noir")
-        .current_dir(".")
+    let output = std::process::Command::new("nargo")
+        .current_dir(vote_prover_dir)
         .arg("prove")
-        .arg("prover_input.toml")
+        .arg("p")
         .output()
         .map_err(|e| format!("Failed to run noir prover! Error: {}", e.to_string()))?;
 
@@ -69,7 +88,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     }
 
     // Read the proof from the file
-    let proof = std::fs::read("proof.json")
+    let proof = std::fs::read(vote_prover_dir.to_owned() + "/proofs/p.proof")
         .map_err(|e| format!("Failed to read proof from file! Error: {}", e.to_string()))?;
 
     Ok(proof)

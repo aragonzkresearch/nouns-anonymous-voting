@@ -22,10 +22,8 @@ impl Mock for Voter {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         // Generate a random Vec of bytes length 32
         Voter::new(
-            "0x0000000000000000000000000000000000000000"
-                .parse()
-                .unwrap(),
-            PrivateKey::import(Vec::from([0u8; 32])).unwrap(),
+            Address::mock(rng),
+            PrivateKey::import(Vec::from(U256::mock(rng).to_be_bytes())).unwrap(),
         )
     }
 }
@@ -47,15 +45,16 @@ impl Mock for ProcessParameters {
         let contract_addr = Address::mock(rng);
         let chain_id = U256::mock(rng);
         let tcls_pk = BBJJ_Ec::mock(rng);
-        let chain_id = U256::mock(rng);
-        let eth_block_hash = U256::mock(rng);
+        let nft_account_state = U256::mock(rng);
+        let registry_account_state = U256::mock(rng);
 
         ProcessParameters {
             process_id,
             contract_addr,
             chain_id,
             tcls_pk,
-            eth_block_hash,
+            nft_account_state,
+            registry_account_state,
         }
     }
 }

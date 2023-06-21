@@ -46,6 +46,8 @@ pub(crate) struct ProcessParameters {
     pub(crate) chain_id: U256,
     /// The public key of the tcls for the process decryption time
     pub(crate) tcls_pk: BBJJ_Ec,
-    /// The hash of the block that the process checkpointed on
-    pub(crate) eth_block_hash: U256,
+    /// The hash of the nft storage account state that the process checkpointed on
+    pub(crate) nft_account_state: U256,
+    /// The hash of the zk-registry storage account state that the process checkpointed on
+    pub(crate) registry_account_state: U256,
 }

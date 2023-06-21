@@ -1,11 +1,10 @@
 use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
-use toml::value::Array;
 use toml::Value;
 
-use crate::services::ethereum::StateProof;
 use crate::services::noir::VoteProverInput;
+use crate::utils::wrapper::Wrapper;
 use crate::MAX_DEPTH;
 use crate::MAX_NODE_LEN;
 use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
@@ -24,7 +23,14 @@ impl TomlSerializable for VoteProverInput {
         map.insert("process_id".to_string(), self.process_id.toml());
         map.insert("contract_addr".to_string(), self.contract_addr.toml());
         map.insert("chain_id".to_string(), self.chain_id.toml());
-        map.insert("eth_block_hash".to_string(), self.eth_block_hash.toml());
+        map.insert(
+            "registry_account_state".to_string(),
+            self.registry_account_state.toml(),
+        );
+        map.insert(
+            "nft_account_state".to_string(),
+            self.nft_account_state.toml(),
+        );
         map.insert("tcls_pk".to_string(), self.tcls_pk.toml());
 
         map.insert("v".to_string(), self.v.toml());
@@ -34,14 +40,11 @@ impl TomlSerializable for VoteProverInput {
         map.insert("nft_id".to_string(), self.nft_id.toml());
         map.insert("k".to_string(), self.k.toml());
         map.insert("registered_pbk".to_string(), self.registered_pbk.toml());
-        map.insert(
-            "registry_key_sp".to_string(),
-            self.registry_key_sp.storage_proof.toml(),
-        ); // TODO - change to full state proof
+        map.insert("registry_key_sp".to_string(), self.registry_key_sp.toml());
         map.insert(
             "nft_ownership_proof".to_string(),
-            self.nft_ownership_proof.storage_proof.toml(),
-        ); // TODO - change to full state proof
+            self.nft_ownership_proof.toml(),
+        );
         Value::Table(map)
     }
 }
@@ -151,7 +154,11 @@ impl<T: TomlSerializable + Copy> TomlSerializable for Vec<T> {
 
 impl TomlSerializable for Signature {
     fn toml(self) -> Value {
-        Value::Array(vec![self.r_b8.x.toml(), self.r_b8.y.toml(), self.s.toml()])
+        let mut map = toml::map::Map::new();
+        map.insert("r".to_string(), self.r_b8.toml());
+        map.insert("s".to_string(), self.s.toml());
+
+        Value::Table(map)
     }
 }
 

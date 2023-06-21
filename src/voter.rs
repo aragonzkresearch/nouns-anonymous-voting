@@ -3,7 +3,7 @@ use ark_std::rand::Rng;
 use ark_std::UniformRand;
 use babyjubjub_ark::{Signature, B8};
 use ethers::core::k256::U256;
-use ethers::prelude::Address;
+use ethers::prelude::{Address, StorageProof};
 use poseidon_ark::Poseidon;
 
 use crate::services::ethereum::StateProof;
@@ -73,7 +73,7 @@ impl Voter {
         nft_id: U256,
         v: VoteChoice,
         process_params: &ProcessParameters,
-        state_proofs: (StateProof, StateProof),
+        storage_proofs: (StorageProof, StorageProof),
         rng: &mut R,
     ) -> Result<BallotWithProof, String> {
         // Convert the parameters to the correct field
@@ -103,7 +103,8 @@ impl Voter {
             process_id,
             contract_addr,
             chain_id,
-            eth_block_hash: Wrapper(process_params.eth_block_hash).into(),
+            registry_account_state: Wrapper(process_params.registry_account_state).into(),
+            nft_account_state: Wrapper(process_params.nft_account_state).into(),
             tcls_pk: process_params.tcls_pk.clone(),
             // Private inputs
             v,
@@ -113,8 +114,8 @@ impl Voter {
             nft_id,
             k: ballot_hints.k,
             registered_pbk: self.registered_sk.public(),
-            registry_key_sp: state_proofs.0,
-            nft_ownership_proof: state_proofs.1,
+            registry_key_sp: storage_proofs.0,
+            nft_ownership_proof: storage_proofs.1,
         };
 
         let proof = noir::prove_vote(noir_input)?;
@@ -221,22 +222,21 @@ mod test {
     use crate::voter::Voter;
 
     #[test]
-    fn test() {
-        println!("Hello world")
-    }
-
-    #[test]
-    fn test_vote_gen() {
+    fn test_vote_gen() -> Result<(), String> {
         let rng = &mut ark_std::test_rng();
 
         let voter = Voter::mock(rng);
 
-        let proof = voter.gen_vote(
+        let ballotWithProof = voter.gen_vote(
             U256::from_u64(1),
             VoteChoice::mock(rng),
             &ProcessParameters::mock(rng),
-            (StateProof::mock(rng), StateProof::mock(rng)),
+            (StorageProof::mock(rng), StorageProof::mock(rng)),
             rng,
-        );
+        )?;
+
+        println!("Proof: {:?}", ballotWithProof.proof);
+
+        Ok(())
     }
 }

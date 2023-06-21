@@ -77,5 +77,3 @@ pub(crate) struct StateProof {
     pub(crate) account_proof: Vec<Bytes>,
     // TODO: add other block parameters
 }
-
-struct BallotWithProof {}
