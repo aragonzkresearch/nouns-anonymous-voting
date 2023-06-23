@@ -6,10 +6,9 @@ use ethers::core::k256::U256;
 use ethers::prelude::{Address, StorageProof};
 use poseidon_ark::Poseidon;
 
-use crate::services::noir;
 use crate::utils::wrapper::Wrapper;
 use crate::utils::VoteChoice;
-use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, BBJJ_G1};
+use crate::{noir, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BBJJ_G1};
 
 /// Represents the Voter who votes in the process
 /// Note that we do not need to know that private key corresponding to the eth_addr

@@ -3,9 +3,7 @@ use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 use toml::Value;
 
-use crate::services::noir::VoteProverInput;
-use crate::MAX_DEPTH;
-use crate::MAX_NODE_LEN;
+use crate::noir::{VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
 use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
 
 pub trait TomlSerializable {

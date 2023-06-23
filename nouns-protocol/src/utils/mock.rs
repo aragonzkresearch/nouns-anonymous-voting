@@ -6,10 +6,8 @@ use ethers::prelude::StorageProof;
 use ethers::types::{Address, H256};
 use rand::Rng;
 
-use crate::services::ethereum::StateProof;
-use crate::utils::{ProcessParameters, VoteChoice};
 use crate::voter::Voter;
-use crate::{BBJJ_Ec, BBJJ_Fr, BBJJ_G1};
+use crate::{BBJJ_Ec, BBJJ_Fr, VoteChoice, BBJJ_G1};
 
 /// Mock trait is used to generate mock data for testing
 pub trait Mock {
@@ -33,15 +31,6 @@ impl Mock for VoteChoice {
             1 => VoteChoice::No,
             2 => VoteChoice::Abstain,
             _ => panic!("Invalid vote choice"),
-        }
-    }
-}
-
-impl Mock for StateProof {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        StateProof {
-            storage_proof: StorageProof::mock(rng),
-            account_proof: vec![],
         }
     }
 }

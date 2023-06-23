@@ -1,10 +1,16 @@
+use ::toml::to_string_pretty;
 use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 
-use crate::services::noir::serialisation::toml::TomlSerializable;
+use crate::noir::toml::TomlSerializable;
 use crate::{BBJJ_Ec, BN254_Fr};
 
-mod serialisation;
+mod toml;
+
+// Useful constants for storage proofs
+pub(crate) const MAX_NODE_LEN: usize = 532;
+// The maximum byte length of a node
+pub(crate) const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
 /// The input to the Noir Vote Prover Circuit
 pub(crate) struct VoteProverInput {
@@ -55,7 +61,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
             Ok(t)
         })?;
 
-    let prover_input_as_string = toml::to_string_pretty(&prover_input)
+    let prover_input_as_string = to_string_pretty(&prover_input)
         .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
 
     // Save the input to a file for the prover to read
