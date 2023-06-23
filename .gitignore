@@ -7,3 +7,4 @@
 /contracts/.env
 /circuits/client-proof/proofs/p.proof
 /circuits/client-proof/Prover.toml
+/.env
