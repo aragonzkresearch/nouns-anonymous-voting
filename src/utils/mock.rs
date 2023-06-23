@@ -1,5 +1,3 @@
-// TODO - only compile this when testing
-
 use ark_ff::PrimeField;
 use babyjubjub_ark::PrivateKey;
 use ethers::core::k256::elliptic_curve::bigint::Encoding;
@@ -35,26 +33,6 @@ impl Mock for VoteChoice {
             1 => VoteChoice::No,
             2 => VoteChoice::Abstain,
             _ => panic!("Invalid vote choice"),
-        }
-    }
-}
-
-impl Mock for ProcessParameters {
-    fn mock<R: Rng>(rng: &mut R) -> Self {
-        let process_id = U256::from(rng.gen_range(0..100u8));
-        let contract_addr = Address::mock(rng);
-        let chain_id = U256::mock(rng);
-        let tcls_pk = BBJJ_Ec::mock(rng);
-        let nft_account_state = U256::mock(rng);
-        let registry_account_state = U256::mock(rng);
-
-        ProcessParameters {
-            process_id,
-            contract_addr,
-            chain_id,
-            tcls_pk,
-            nft_account_state,
-            registry_account_state,
         }
     }
 }

@@ -35,24 +35,16 @@ impl Voter {
 }
 
 /// Represents the ballot that the voter casts
+#[derive(Clone, Debug)]
 pub struct Ballot {
     /// The first part of the encrypted vote
-    pub(crate) a: BBJJ_Ec,
+    pub a: BBJJ_Ec,
     /// The second part of the encrypted vote
-    pub(crate) b: BN254_Fr,
+    pub b: BN254_Fr,
     /// The nullifier of the encrypted vote, to prevent double voting
-    pub(crate) n: BN254_Fr,
+    pub n: BN254_Fr,
     /// The hash of the id of the vote, to prevent malleability
-    pub(crate) h_id: BN254_Fr,
-}
-
-/// Represents the ballot that the voter casts
-/// With an attached proof that the ballot is valid
-pub struct BallotWithProof {
-    /// The ballot that the voter casts
-    ballot: Ballot,
-    /// Ballot correctness proof, represented as a vector of bytes
-    proof: Vec<u8>,
+    pub h_id: BN254_Fr,
 }
 
 /// Represents the hints that were generated while constructing the ballot
@@ -68,20 +60,25 @@ pub(crate) struct BallotHints {
 
 impl Voter {
     /// Generate a vote for given parameters
-    pub(crate) fn gen_vote<R: Rng>(
+    pub fn gen_vote<R: Rng>(
         &self,
         nft_id: U256,
         v: VoteChoice,
-        process_params: &ProcessParameters,
+        process_id: U256,
+        contract_addr: Address,
+        chain_id: U256,
+        tcls_pk: BBJJ_Ec,
+        nft_account_state: U256,
+        registry_account_state: U256,
         storage_proofs: (StorageProof, StorageProof),
         rng: &mut R,
-    ) -> Result<BallotWithProof, String> {
+    ) -> Result<(Ballot, Vec<u8>), String> {
         // Convert the parameters to the correct field
         let nft_id: [BN254_Fr; 2] = Wrapper(nft_id).into();
         let v: BN254_Fr = Wrapper(U256::from(u8::from(v))).into();
-        let process_id: BN254_Fr = Wrapper(process_params.process_id).into();
-        let contract_addr: BN254_Fr = Wrapper(process_params.contract_addr).into();
-        let chain_id: [BN254_Fr; 2] = Wrapper(process_params.chain_id).into();
+        let process_id: BN254_Fr = Wrapper(process_id).into();
+        let contract_addr: BN254_Fr = Wrapper(contract_addr).into();
+        let chain_id: [BN254_Fr; 2] = Wrapper(chain_id).into();
 
         // Prepare the inputs for the Noir circuit vote prover circuit
         let (ballot, ballot_hints) = self.gen_ballot_with_hints(
@@ -90,7 +87,7 @@ impl Voter {
             process_id,
             contract_addr,
             chain_id,
-            process_params.tcls_pk.clone(),
+            tcls_pk.clone(),
             rng,
         )?;
 
@@ -103,9 +100,9 @@ impl Voter {
             process_id,
             contract_addr,
             chain_id,
-            registry_account_state: Wrapper(process_params.registry_account_state).into(),
-            nft_account_state: Wrapper(process_params.nft_account_state).into(),
-            tcls_pk: process_params.tcls_pk.clone(),
+            registry_account_state: Wrapper(registry_account_state).into(),
+            nft_account_state: Wrapper(nft_account_state).into(),
+            tcls_pk: tcls_pk.clone(),
             // Private inputs
             v,
             signed_id: ballot_hints.signed_id,
@@ -120,9 +117,7 @@ impl Voter {
 
         let proof = noir::prove_vote(noir_input)?;
 
-        let ballot_with_proof = BallotWithProof { ballot, proof };
-
-        Ok(ballot_with_proof)
+        Ok((ballot, proof))
     }
 
     /// Generate a vote ballot with prover hints for given vote parameters
@@ -198,28 +193,16 @@ impl Voter {
     }
 }
 
-// /// Voters key actions
-// impl Voter {
-//     /// Registers the voter's public BabyJubJub key on the registry contract
-//     pub(crate) fn register_bbjj_key() {
-//         unimplemented!()
-//     }
-//
-//     /// Submits a vote to the voting contract
-//     pub(crate) fn submit_vote() {
-//         unimplemented!()
-//     }
-// }
-
 #[cfg(test)]
 mod test {
     use ethers::core::k256::U256;
-    use ethers::types::StorageProof;
+    use ethers::types::{Address, StorageProof};
+    use rand::Rng;
 
-    use crate::services::ethereum::StateProof;
     use crate::utils::mock::Mock;
-    use crate::utils::{ProcessParameters, VoteChoice};
+    use crate::utils::VoteChoice;
     use crate::voter::Voter;
+    use crate::BBJJ_Ec;
 
     #[test]
     fn test_vote_gen() -> Result<(), String> {
@@ -227,15 +210,21 @@ mod test {
 
         let voter = Voter::mock(rng);
 
-        let ballotWithProof = voter.gen_vote(
+        let (ballot, proof) = voter.gen_vote(
             U256::from_u64(1),
             VoteChoice::mock(rng),
-            &ProcessParameters::mock(rng),
+            U256::from(rng.gen_range(0..100u8)),
+            Address::mock(rng),
+            U256::mock(rng),
+            BBJJ_Ec::mock(rng),
+            U256::mock(rng),
+            U256::mock(rng),
             (StorageProof::mock(rng), StorageProof::mock(rng)),
             rng,
         )?;
 
-        println!("Proof: {:?}", ballotWithProof.proof);
+        println!("Ballot: {:?}", ballot);
+        println!("Proof: {:?}", proof);
 
         Ok(())
     }

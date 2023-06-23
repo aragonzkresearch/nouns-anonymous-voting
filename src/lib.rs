@@ -1,14 +1,17 @@
 #![allow(non_snake_case)]
 
-pub(crate) use ark_bn254::Fr as BN254_Fr;
+pub use ark_bn254::Fr as BN254_Fr;
 /// Define the reexported types from the arkworks libraries to be used in this crate
-pub(crate) use babyjubjub_ark::{Fr as BBJJ_Fr, Point as BBJJ_Ec, B8 as BBJJ_G1};
+pub use babyjubjub_ark::{Fr as BBJJ_Fr, Point as BBJJ_Ec, B8 as BBJJ_G1};
+
+pub use utils::wrapper::Wrapper;
+pub use utils::VoteChoice;
 
 mod utils;
 
 mod proposer;
 mod tallier;
-mod voter;
+pub mod voter;
 
 mod services;
 

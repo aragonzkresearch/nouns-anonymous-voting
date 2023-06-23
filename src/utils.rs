@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ethers::core::k256::U256;
 use ethers::types::Address;
 
@@ -9,7 +11,7 @@ pub(crate) mod mock;
 pub(crate) mod wrapper;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum VoteChoice {
+pub enum VoteChoice {
     Yes,
     No,
     Abstain,
@@ -32,6 +34,20 @@ impl From<VoteChoice> for u8 {
             VoteChoice::Yes => 0,
             VoteChoice::No => 1,
             VoteChoice::Abstain => 2,
+        }
+    }
+}
+
+impl From<&str> for VoteChoice {
+    fn from(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "yes" => Self::Yes,
+            "no" => Self::No,
+            "abstain" => Self::Abstain,
+            "y" => Self::Yes,
+            "n" => Self::No,
+            "a" => Self::Abstain,
+            _ => panic!("Invalid vote choice"),
         }
     }
 }

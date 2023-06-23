@@ -65,7 +65,7 @@ contract NounsVoting {
     /// The Poseidon Hash contract address
     Poseidon2 poseidon2;
 
-    mapping (uint256 => VotingProcess) public votingProcesses;
+    mapping(uint256 => VotingProcess) public votingProcesses;
     uint256 public voteId = 0;
 
     constructor(
@@ -96,9 +96,9 @@ contract NounsVoting {
     function createProcess(
         uint256 nounsTokenStorageRoot,
         uint256 zkRegistryStorageRoot,
-        uint256 endBlock,
+        uint256 blockDuration,
         uint256[2] calldata tlcsPublicKey
-    ) public returns(uint256) {
+    ) public returns (uint256) {
 
 
         bytes memory emptyBytes = bytes("");
@@ -106,7 +106,7 @@ contract NounsVoting {
         return createProcessWithExecutableAction(
             nounsTokenStorageRoot,
             zkRegistryStorageRoot,
-            endBlock,
+            blockDuration,
             tlcsPublicKey,
             address(0),
             bytes4(0),
@@ -128,12 +128,12 @@ contract NounsVoting {
     function createProcessWithExecutableAction(
         uint256 nounsTokenStorageRoot,
         uint256 zkRegistryStorageRoot,
-        uint256 endBlock,
+        uint256 blockDuration,
         uint256[2] calldata tlcsPublicKey,
         address target,
         bytes4 funcSignature,
         bytes memory args
-    ) public returns(uint256) {
+    ) public returns (uint256) {
 
         // Create the executable action
         ExecutableAction memory action = ExecutableAction({
@@ -146,9 +146,9 @@ contract NounsVoting {
             nounsTokenStorageRoot: nounsTokenStorageRoot,
             zkRegistryStorageRoot: zkRegistryStorageRoot,
             startBlock: block.number,
-            endBlock: endBlock,
+            endBlock: block.number + blockDuration,
             tlcsPublicKey: tlcsPublicKey,
-            ballotsHash : 0,
+            ballotsHash: 0,
             votesFor: 0,
             votesAgainst: 0,
             votesAbstain: 0,
@@ -167,11 +167,12 @@ contract NounsVoting {
     /// @param a The first part of the encrypted vote
     /// @param b The second part of the encrypted vote
     /// @param n The nullifier of the encrypted vote
+    /// @param h_id The hash of the id of the vote, to prevent malleability
     /// @param proof The proof of the vote correctness
     /// @notice We should consider doing this using Account Abstraction to allow anyone to submit the vote on behalf of the voter
     function submitVote(
         uint256 processId,
-        uint256 a,
+        uint256[2] a,
         uint256 b,
         uint256 n,
         uint256 h_id,
@@ -260,7 +261,7 @@ contract NounsVoting {
             ExecutableAction storage action = process.action;
 
             // Execute the action
-            (bool success, ) = action.target.call(
+            (bool success,) = action.target.call(
                 abi.encodeWithSelector(action.funcSignature, action.args)
             );
 
@@ -282,7 +283,7 @@ contract NounsVoting {
         uint256 n,
         uint256 h_id,
         bytes calldata proof
-    ) internal returns(bool) {
+    ) internal returns (bool) {
 
 
         uint256 chainId;
@@ -324,7 +325,7 @@ contract NounsVoting {
         uint256 votesAbstain,
         uint256 ballotsHash,
         bytes calldata proof
-    ) internal returns(bool) {
+    ) internal returns (bool) {
 
         public_args.push(bytesToBytes32(abi.encode(votesFor)));
         public_args.push(bytesToBytes32(abi.encode(votesAgainst)));
@@ -343,7 +344,7 @@ contract NounsVoting {
     }
 
 
-    function bytesToBytes32(bytes memory b) private pure returns (bytes32) {
+    function _bytesToBytes32(bytes memory b) private pure returns (bytes32) {
         bytes32 out;
 
         for (uint i = 0; i < 32; i++) {
