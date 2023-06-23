@@ -67,9 +67,9 @@ impl From<Wrapper<BN254_Fr>> for U256 {
 impl From<Wrapper<U256>> for [BN254_Fr; 2] {
     fn from(value: Wrapper<U256>) -> Self {
         // Convert the most significant 128 bits of the U256 to a BN254_Fr.
-        let mut fr1 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[0..16]);
+        let fr1 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[0..16]);
         // Convert the least significant 128 bits of the U256 to a BN254_Fr.
-        let mut fr2 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[16..32]);
+        let fr2 = BN254_Fr::from_be_bytes_mod_order(&value.0.to_be_bytes()[16..32]);
         // Return the BN254_Fr array.
         [fr1, fr2]
     }

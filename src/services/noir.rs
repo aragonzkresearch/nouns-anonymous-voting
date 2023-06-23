@@ -1,9 +1,6 @@
-use std::fmt::Write;
-
 use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 
-use crate::services::ethereum::StateProof;
 use crate::services::noir::serialisation::toml::TomlSerializable;
 use crate::{BBJJ_Ec, BN254_Fr};
 

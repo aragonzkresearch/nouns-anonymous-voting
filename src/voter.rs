@@ -1,15 +1,14 @@
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::PrimeField;
 use ark_std::rand::Rng;
 use ark_std::UniformRand;
-use babyjubjub_ark::{Signature, B8};
+use babyjubjub_ark::Signature;
 use ethers::core::k256::U256;
 use ethers::prelude::{Address, StorageProof};
 use poseidon_ark::Poseidon;
 
-use crate::services::ethereum::StateProof;
 use crate::services::noir;
 use crate::utils::wrapper::Wrapper;
-use crate::utils::{ProcessParameters, VoteChoice};
+use crate::utils::VoteChoice;
 use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, BBJJ_G1};
 
 /// Represents the Voter who votes in the process

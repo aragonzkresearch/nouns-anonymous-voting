@@ -4,7 +4,6 @@ use ethers::types::StorageProof;
 use toml::Value;
 
 use crate::services::noir::VoteProverInput;
-use crate::utils::wrapper::Wrapper;
 use crate::MAX_DEPTH;
 use crate::MAX_NODE_LEN;
 use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
