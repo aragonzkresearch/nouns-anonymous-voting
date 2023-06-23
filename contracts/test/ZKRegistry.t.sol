@@ -12,13 +12,13 @@ contract ZKRegistryTest is Test {
     }
 
     function testRegister() public {
-        uint8 interface_id = zkRegistry.BBJJPK_INTERFACE_ID();
+        uint8 interface_id = zkRegistry.POSEIDON_INTERFACE_ID();
         zkRegistry.register(interface_id, 0x1234);
         assertEq(zkRegistry.get(interface_id, address(this)), 0x1234);
     }
 
     function testDeregister() public {
-        uint8 interface_id = zkRegistry.BBJJPK_INTERFACE_ID();
+        uint8 interface_id = zkRegistry.POSEIDON_INTERFACE_ID();
         zkRegistry.register(interface_id, 0x1234);
         zkRegistry.deregister(interface_id);
         assertEq(zkRegistry.get(interface_id, address(this)), 0);

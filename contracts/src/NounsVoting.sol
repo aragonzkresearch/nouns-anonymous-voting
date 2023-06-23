@@ -88,7 +88,7 @@ contract NounsVoting {
     /// @notice This function is called to generate a new voting process
     /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
     /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
-    /// @param endBlock The block number at which the voting process will end
+    /// @param blockDuration The number of blocks that the voting process will last
     /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We use the BabyJubJub curve for public/private key encryption, represented in Affine coordinates {x, y}. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @dev The storage roots should be for the same block
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract. This will be done in a future version.
@@ -117,7 +117,7 @@ contract NounsVoting {
     /// @notice This function is called to generate a new voting process with an executable action
     /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
     /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
-    /// @param endBlock The block number at which the voting process will end
+    /// @param blockDuration The number of blocks that the voting process will last
     /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @param target The target address on which the action will be executed
     /// @param funcSignature The function signature of the action to be executed after the voting process ends
@@ -172,7 +172,7 @@ contract NounsVoting {
     /// @notice We should consider doing this using Account Abstraction to allow anyone to submit the vote on behalf of the voter
     function submitVote(
         uint256 processId,
-        uint256[2] a,
+        uint256[2] memory a,
         uint256 b,
         uint256 n,
         uint256 h_id,
@@ -278,7 +278,7 @@ contract NounsVoting {
         uint256 nounsTokenStorageRoot,
         uint256 zkRegistryStorageRoot,
         uint256[2] memory tlcsPublicKey,
-        uint256 a,
+        uint256[2] memory a,
         uint256 b,
         uint256 n,
         uint256 h_id,
@@ -291,18 +291,18 @@ contract NounsVoting {
             chainId := chainid()
         }
 
-        public_args.push(bytesToBytes32(abi.encode(a)));
-        public_args.push(bytesToBytes32(abi.encode(b)));
-        public_args.push(bytesToBytes32(abi.encode(n)));
-        public_args.push(bytesToBytes32(abi.encode(h_id)));
-        public_args.push(bytesToBytes32(abi.encode(chainId))); // Part 1 of the `id` value
-        public_args.push(bytesToBytes32(abi.encode(processId))); // Part 2 of the `id` value
-        public_args.push(bytesToBytes32(abi.encode(address(this)))); // Part 3 of the `id` value
+        public_args.push(_bytesToBytes32(abi.encode(a)));
+        public_args.push(_bytesToBytes32(abi.encode(b)));
+        public_args.push(_bytesToBytes32(abi.encode(n)));
+        public_args.push(_bytesToBytes32(abi.encode(h_id)));
+        public_args.push(_bytesToBytes32(abi.encode(chainId))); // Part 1 of the `id` value
+        public_args.push(_bytesToBytes32(abi.encode(processId))); // Part 2 of the `id` value
+        public_args.push(_bytesToBytes32(abi.encode(address(this)))); // Part 3 of the `id` value
         /// @warning This should be the block hash instead of the storage root
-        public_args.push(bytesToBytes32(abi.encode(nounsTokenStorageRoot)));
+        public_args.push(_bytesToBytes32(abi.encode(nounsTokenStorageRoot)));
         /// @warning This should be the block hash instead of the storage root
-        public_args.push(bytesToBytes32(abi.encode(zkRegistryStorageRoot)));
-        public_args.push(bytesToBytes32(abi.encode(tlcsPublicKey)));
+        public_args.push(_bytesToBytes32(abi.encode(zkRegistryStorageRoot)));
+        public_args.push(_bytesToBytes32(abi.encode(tlcsPublicKey)));
 
 
         bool result = voteVerifier.verify(
@@ -327,10 +327,10 @@ contract NounsVoting {
         bytes calldata proof
     ) internal returns (bool) {
 
-        public_args.push(bytesToBytes32(abi.encode(votesFor)));
-        public_args.push(bytesToBytes32(abi.encode(votesAgainst)));
-        public_args.push(bytesToBytes32(abi.encode(votesAbstain)));
-        public_args.push(bytesToBytes32(abi.encode(ballotsHash)));
+        public_args.push(_bytesToBytes32(abi.encode(votesFor)));
+        public_args.push(_bytesToBytes32(abi.encode(votesAgainst)));
+        public_args.push(_bytesToBytes32(abi.encode(votesAbstain)));
+        public_args.push(_bytesToBytes32(abi.encode(ballotsHash)));
 
         bool result = tallyVerifier.verify(
             proof,

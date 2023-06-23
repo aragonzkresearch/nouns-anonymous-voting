@@ -11,10 +11,10 @@ contract ZKRegistry {
 
     /// Reserved interface ids
     uint8 public BBJJPK_X_INTERFACE_ID = 0x00; // first byte of keccak("BBJJPK")
-    uint8 public BBJJPK_Y_INTERFACE_ID = 0x01; // first byte of keccak("BBJJPK")
+    uint8 public BBJJPK_Y_INTERFACE_ID = 0x01; // first byte of keccak("BBJJPK") + 1
 
     uint8 public BLS12PK_X_INTERFACE_ID = 0xc2; // first byte of keccak("BLS12PK")
-    uint8 public BLS12PK_Y_INTERFACE_ID = 0xc3; // first byte of keccak("BLS12PK")
+    uint8 public BLS12PK_Y_INTERFACE_ID = 0xc3; // first byte of keccak("BLS12PK") + 1
 
     uint8 public POSEIDON_INTERFACE_ID = 0xbf; // first byte of keccak("POSEIDON")
 
