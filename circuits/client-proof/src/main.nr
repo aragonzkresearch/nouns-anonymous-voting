@@ -34,6 +34,10 @@ struct VoteProverPackage<MAX_PROOF_SIZE>
     id_hash: Field,
     election_id: ElectionIdentifier,
     r: [u1; MAX_BITS],
+    storage_hash1: [u8; 32],
+    storage_hash2: [u8; 32],
+    storage_hash3: [u8; 32],
+    
     
     // Private inputs
     k: Point,
@@ -42,7 +46,6 @@ struct VoteProverPackage<MAX_PROOF_SIZE>
     sigma: Signature,
     tau: Signature,
     rck: Point,
-    storage_hash: [u8; 32],
     p_1: TrieProof32<MAX_PROOF_SIZE, 32>,
     p_2: TrieProof32<MAX_PROOF_SIZE, 32>,
     p_3: TrieProof32<MAX_PROOF_SIZE, 32>,
@@ -56,13 +59,15 @@ fn main(
     election_id: pub [Field; 3],
     r: pub [u1; MAX_BITS],
     pk_t: pub [Field; 2],
+    storage_hash1: pub [u8; 32],
+    storage_hash2: pub [u8; 32],
+    storage_hash3: pub [u8; 32],
     k: [Field; 2],
     nft_id: Field,
     v: Field,
     sigma: [Field; 3],
     tau: [Field; 3],
     rck: [Field; 2],
-    storage_hash: [u8; 32],
     p_1: TrieProof32<DEPTH8_PROOF_SIZE, 32>,
     p_2: TrieProof32<DEPTH8_PROOF_SIZE, 32>,
     p_3: TrieProof32<DEPTH8_PROOF_SIZE, 32>
@@ -78,6 +83,9 @@ fn main(
                                                contract_addr: election_id[2]
                                            },
                                            r,
+                                           storage_hash1,
+                                           storage_hash2,
+                                           storage_hash3,
                                            k: Point::new(k[0], k[1]),
                                            nft_id,
                                            v,
@@ -86,7 +94,6 @@ fn main(
                                            tau: Signature { r_b8: Point::new(tau[0], tau[1]),
                                                             s: tau[2]},
                                            rck: Point::new(rck[0], rck[1]),
-                                           storage_hash,
                                            p_1,
                                            p_2,
                                            p_3
@@ -116,9 +123,9 @@ fn verify_vote_package<MAX_PROOF_SIZE>(vote_package: VoteProverPackage<MAX_PROOF
     assert(vote_package.b == bn254::hash_6([vote_package.k.x, vote_package.k.y, vote_package.v, vote_package.election_id.chain_id, vote_package.election_id.process_id, vote_package.election_id.contract_addr]));
     assert((vote_package.v == 0) | (vote_package.v == 1) | (vote_package.v == 2));
 
-    assert(verify_storage_proof(vote_package.storage_hash, vote_package.p_1));
-    assert(verify_storage_proof(vote_package.storage_hash, vote_package.p_2));
-    assert(verify_storage_proof(vote_package.storage_hash, vote_package.p_3));
+    assert(verify_storage_proof(vote_package.storage_hash1, vote_package.p_1));
+    assert(verify_storage_proof(vote_package.storage_hash2, vote_package.p_2));
+    assert(verify_storage_proof(vote_package.storage_hash3, vote_package.p_3));
 }
 
 fn reverse<T,N>(x: [T; N]) -> [T; N]
