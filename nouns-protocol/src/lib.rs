@@ -13,4 +13,4 @@ mod utils;
 mod noir;
 
 mod tallier;
-mod voter;
+pub mod voter;

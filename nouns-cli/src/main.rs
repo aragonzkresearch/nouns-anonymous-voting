@@ -6,6 +6,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::ethereum::contract_interactions::vote;
+
 use clap::{command, Arg, Command};
 use ethers::core::k256::U256;
 use ethers::middleware::SignerMiddleware;
@@ -14,10 +16,11 @@ use ethers::providers::{Http, Middleware, Provider, ProviderExt};
 use ethers::signers::LocalWallet;
 use ethers::types::{Address, StorageProof};
 
+use cli::{CliCommand, get_user_input};
+use ethereum::contract_interactions::{create_process, reg_key};
 use babyjubjub_ark::PrivateKey;
-use nouns_anonymous_voting::voter::Voter;
-use nouns_anonymous_voting::{wrap, wrap_into, BBJJ_Ec, VoteChoice, Wrapper};
-use nouns_protocol::wrap_into;
+use nouns_protocol::voter::Voter;
+use nouns_protocol::{wrap, wrap_into, BBJJ_Ec, VoteChoice, Wrapper};
 use parsers::*;
 
 mod cli;

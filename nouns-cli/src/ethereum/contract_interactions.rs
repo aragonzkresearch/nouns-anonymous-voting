@@ -1,6 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::EthersU256;
+use crate::PrivateKey;
+use crate::Wrapper;
 use ethers::core::k256::U256;
 use ethers::core::rand;
 use ethers::prelude::{
@@ -8,7 +11,7 @@ use ethers::prelude::{
 };
 
 use nouns_protocol::voter::Voter;
-use nouns_protocol::{wrap_into, BBJJ_Ec, VoteChoice};
+use nouns_protocol::{wrap, wrap_into, BBJJ_Ec, VoteChoice};
 
 abigen!(
     ZKRegistry,
@@ -27,7 +30,7 @@ abigen!(
 );
 
 /// Function that registers a new BBJJ Public Key in the ZKRegistry contract.
-async fn reg_key(
+pub(crate) async fn reg_key(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     nouns_voting_address: Address,
     bbjj_private_key: PrivateKey,
@@ -75,7 +78,7 @@ async fn reg_key(
 }
 
 /// Function that creates a new voting process in the NounsVoting contract.
-async fn create_process(
+pub(crate) async fn create_process(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     contract_address: Address,
     process_duration: Duration,
@@ -111,7 +114,7 @@ async fn create_process(
 }
 
 /// Function that votes in an existing voting process in the NounsVoting contract.
-async fn vote(
+pub(crate) async fn vote(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     contract_address: Address,
     process_id: U256,
