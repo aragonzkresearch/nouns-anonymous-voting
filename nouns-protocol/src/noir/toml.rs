@@ -1,16 +1,49 @@
-use crate::election::{ElectionIdentifier, VoteChoice};
-use crate::preprover::{PrivateInput, PublicInput, StorageProof, VoteProverPackage};
-use crate::serialisation::Wrapper;
-use crate::MAX_DEPTH;
-use crate::MAX_NODE_LEN;
-use crate::{BBJJ_Fr, BN254_Fr, BBJJ_G1};
 use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
-use toml::value::Array;
+use ethers::types::StorageProof;
 use toml::Value;
+
+use crate::noir::{VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
+use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
 
 pub trait TomlSerializable {
     fn toml(self) -> Value;
+}
+
+impl TomlSerializable for VoteProverInput {
+    fn toml(self) -> Value {
+        let mut map = toml::map::Map::new();
+        map.insert("a".to_string(), self.a.toml());
+        map.insert("b".to_string(), self.b.toml());
+        map.insert("n".to_string(), self.n.toml());
+        map.insert("h_id".to_string(), self.h_id.toml());
+        map.insert("process_id".to_string(), self.process_id.toml());
+        map.insert("contract_addr".to_string(), self.contract_addr.toml());
+        map.insert("chain_id".to_string(), self.chain_id.toml());
+        map.insert(
+            "registry_account_state".to_string(),
+            self.registry_account_state.toml(),
+        );
+        map.insert(
+            "nft_account_state".to_string(),
+            self.nft_account_state.toml(),
+        );
+        map.insert("tcls_pk".to_string(), self.tcls_pk.toml());
+
+        map.insert("v".to_string(), self.v.toml());
+        map.insert("signed_id".to_string(), self.signed_id.toml());
+        map.insert("voter_address".to_string(), self.voter_address.toml());
+        map.insert("signed_v".to_string(), self.signed_v.toml());
+        map.insert("nft_id".to_string(), self.nft_id.toml());
+        map.insert("k".to_string(), self.k.toml());
+        map.insert("registered_pbk".to_string(), self.registered_pbk.toml());
+        map.insert("registry_key_sp".to_string(), self.registry_key_sp.toml());
+        map.insert(
+            "nft_ownership_proof".to_string(),
+            self.nft_ownership_proof.toml(),
+        );
+        Value::Table(map)
+    }
 }
 
 impl TomlSerializable for StorageProof {
@@ -32,8 +65,12 @@ impl TomlSerializable for StorageProof {
             assert!(node.len() <= MAX_NODE_LEN, "Invalid node!");
         });
         ////////
-        
-        let path = self.proof.into_iter().map(|b| { b.to_vec() }).collect::<Vec<_>>();
+
+        let path = self
+            .proof
+            .into_iter()
+            .map(|b| b.to_vec())
+            .collect::<Vec<_>>();
 
         // Proof path needs to be an appropriately padded flat array.
         let padded_path = path
@@ -55,7 +92,7 @@ impl TomlSerializable for StorageProof {
         map.insert("proof".to_string(), padded_path.toml());
 
         let key: [u8; 32] = self.key.into();
-        let value: [u8;32] = self.value.into();
+        let value: [u8; 32] = self.value.into();
 
         map.insert("key".to_string(), key.to_vec().toml());
         map.insert("value".to_string(), value.to_vec().toml());
@@ -100,80 +137,30 @@ impl TomlSerializable for BBJJ_Fr {
     }
 }
 
+impl<T: TomlSerializable + Copy, const N: usize> TomlSerializable for [T; N] {
+    fn toml(self) -> Value {
+        Value::Array(self.iter().map(|x| x.toml()).collect())
+    }
+}
+
 impl<T: TomlSerializable + Copy> TomlSerializable for Vec<T> {
     fn toml(self) -> Value {
         Value::Array(self.iter().map(|x| x.toml()).collect())
     }
 }
 
-impl TomlSerializable for ElectionIdentifier {
-    fn toml(self) -> Value {
-        let mut array = Array::new();
-        array.push(self.chain_id.toml());
-        array.push(self.process_id.toml());
-        array.push(self.contract_addr.toml());
-        Value::Array(array)
-    }
-}
-
-impl TomlSerializable for PublicInput {
-    fn toml(self) -> Value {
-        let mut map = toml::map::Map::new();
-        map.insert(
-            "a".to_string(),
-            <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.a)).toml(),
-        );
-        map.insert("b".to_string(), self.b.toml());
-        map.insert("nullifier".to_string(), self.nullifier.toml());
-        map.insert("id_hash".to_string(), self.id_hash.toml());
-        map.insert("election_id".to_string(), self.election_id.toml());
-        map.insert("r".to_string(), self.r.into_bigint().to_bits_be().toml());
-        Value::Table(map)
-    }
-}
-
-impl TomlSerializable for VoteProverPackage {
-    fn toml(self) -> Value {
-        let mut map = toml::map::Map::new();
-        map.insert("public_input".to_string(), self.public_input.toml());
-        map.insert("private_input".to_string(), self.private_input.toml());
-        Value::Table(map)
-    }
-}
-
 impl TomlSerializable for Signature {
     fn toml(self) -> Value {
-        Value::Array(vec![self.r_b8.x.toml(), self.r_b8.y.toml(), self.s.toml()])
+        let mut map = toml::map::Map::new();
+        map.insert("r".to_string(), self.r_b8.toml());
+        map.insert("s".to_string(), self.s.toml());
+
+        Value::Table(map)
     }
 }
 
-impl TomlSerializable for PrivateInput {
+impl TomlSerializable for BBJJ_Ec {
     fn toml(self) -> Value {
-        let mut map = toml::map::Map::new();
-        map.insert(
-            "k".to_string(),
-            <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.k)).toml(),
-        );
-        map.insert("nft_id".to_string(), self.nft_id.toml());
-        map.insert(
-            "v".to_string(),
-            <VoteChoice as Into<BN254_Fr>>::into(self.v).toml(),
-        );
-        map.insert("sigma".to_string(), self.sigma.toml());
-        map.insert("tau".to_string(), self.tau.toml());
-        map.insert(
-            "rck".to_string(),
-            <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(self.rck)).toml(),
-        );
-
-        for (name, data) in [
-            ("p_1", self.p_1.toml()),
-            ("p_2", self.p_2.toml()),
-            ("p_3", self.p_3.toml()),
-        ] {
-            map.insert(name.to_string(), data);
-        }
-
-        Value::Table(map)
+        Value::Array(vec![self.x.toml(), self.y.toml()])
     }
 }

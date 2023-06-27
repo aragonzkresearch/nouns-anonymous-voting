@@ -5,3 +5,10 @@
 /Prover.toml
 /Verifier.toml
 /contracts/.env
+/circuits/client-proof/proofs/p.proof
+/circuits/client-proof/Prover.toml
+/.env
+/nouns-protocol/Cargo.lock
+/nouns-cli/Cargo.lock
+/nouns-cli/target/
+/nouns-protocol/target/

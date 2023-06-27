@@ -25,6 +25,7 @@ contract NounsVotingDeployScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         NounsDescriptor nounsDescriptor = new NounsDescriptor();
+
         NounsSeeder nounsSeeder = new NounsSeeder();
         // Set 0x0 address as proxy address, since we don't need it for our purposes
         // This address is only used for the OpenSea integration
@@ -45,7 +46,7 @@ contract NounsVotingDeployScript is Script {
         INoirVerifier noirTallyVerifier = INoirVerifier(address(0));
         PoseidonFactory poseidonFactory = new PoseidonFactory();
 
-        new NounsVoting(
+        NounsVoting nounsVoting = new NounsVoting(
             token,
             zkRegistry,
             noirVoteVerifier,
@@ -54,5 +55,9 @@ contract NounsVotingDeployScript is Script {
         );
 
         vm.stopBroadcast();
+
+        console.log("NounsVoting deployed at address: %s", address(nounsVoting));
+        console.log("NounsToken deployed at address: %s", address(token));
+        console.log("ZKRegistry deployed at address: %s", address(zkRegistry));
     }
 }
