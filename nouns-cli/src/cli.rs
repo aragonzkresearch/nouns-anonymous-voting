@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::PrivateKey;
 use clap::{command, Arg, Command};
 use ethers::abi::Address;
 use ethers::core::k256::U256;

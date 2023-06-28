@@ -16,4 +16,4 @@ mod utils;
 pub mod noir;
 
 mod tallier;
-mod voter;
+pub mod voter;
