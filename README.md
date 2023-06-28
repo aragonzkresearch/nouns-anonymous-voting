@@ -1,10 +1,8 @@
-# nouns-voting-proofs
+# nouns-anonymous-voting
 
-This crate consists of
+# ⛔ DISCLAIMER: This is a work in progress and does not work yet. 💀
 
-- the client-side anonymous voting application implementation, and
-- the server-side tally proof generator
-  for the Nouns private voting project.
+This repository consists of a library, CLI and smart contracts for the Nouns private voting project.
 
 This is a work in progress. Please do not use this in production.
 
