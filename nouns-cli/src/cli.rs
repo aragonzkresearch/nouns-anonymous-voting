@@ -1,28 +1,26 @@
-use std::ops::Deref;
 use std::str::FromStr;
 use std::time::Duration;
 
 use clap::{command, Arg, Command};
 use ethers::abi::Address;
 use ethers::core::k256::U256;
-use ethers::utils::hex;
 
-use nouns_protocol::{BBJJ_Ec, VoteChoice};
+use nouns_protocol::{BBJJ_Ec, PrivateKey, VoteChoice};
 
 use crate::parsers::{
     parse_bbjj_prk, parse_duration, parse_private_key, parse_tlcs_pbk, parse_u256,
 };
 
 /// The global parameters of the CLI
-struct GlobalCliParams {
-    contract_address: Address,
-    rpc_url: String,
-    tx_private_key: [u8; 32],
+pub(crate) struct GlobalCliParams {
+    pub(crate) contract_address: Address,
+    pub(crate) rpc_url: String,
+    pub(crate) tx_private_key: [u8; 32],
 }
 
 /// The CLI commands that the user can choose from
 /// Parameters are passed as arguments and the command is executed
-enum CliCommand {
+pub(crate) enum CliCommand {
     RegKey(PrivateKey),
     CreateProcess(Duration, BBJJ_Ec),
     Vote(U256, U256, Address, PrivateKey, VoteChoice, BBJJ_Ec),
@@ -30,7 +28,7 @@ enum CliCommand {
     None, // No command was chosen
 }
 
-fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
+pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
     let command = command_constructor();
     let matches = command.get_matches();
 

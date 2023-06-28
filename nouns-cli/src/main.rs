@@ -1,29 +1,19 @@
 extern crate core;
 
-use std::env;
-use std::ops::Deref;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-
-use clap::{command, Arg, Command};
-use ethers::core::k256::U256;
 use ethers::middleware::SignerMiddleware;
-use ethers::prelude::{abigen, Signer, U256 as EthersU256};
+use ethers::prelude::Signer;
+pub(crate) use ethers::prelude::U256 as EthersU256;
 use ethers::providers::{Http, Middleware, Provider, ProviderExt};
 use ethers::signers::LocalWallet;
-use ethers::types::{Address, StorageProof};
 
-use babyjubjub_ark::PrivateKey;
-use nouns_anonymous_voting::voter::Voter;
-use nouns_anonymous_voting::{wrap, wrap_into, BBJJ_Ec, VoteChoice, Wrapper};
-use nouns_protocol::wrap_into;
-use parsers::*;
+use nouns_protocol::{wrap, wrap_into, Wrapper};
+
+use crate::cli::{get_user_input, CliCommand};
+use crate::ethereum::contract_interactions::{create_process, reg_key, vote};
 
 mod cli;
 mod ethereum;
 mod parsers;
-mod storage_proofs;
 
 /// The CLI that to interact with the Nouns Anonymous Voting System
 /// As global parameters, it should take:
@@ -109,6 +99,7 @@ async fn main() {
         ) => {
             vote(
                 client,
+                eth_connection,
                 global_param.contract_address,
                 process_id,
                 nft_id,

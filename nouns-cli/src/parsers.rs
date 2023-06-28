@@ -4,9 +4,7 @@ use std::time::Duration;
 use ethers::core::k256::U256;
 use ethers::utils::hex;
 
-use ark_ff::PrimeField;
-use babyjubjub_ark::PrivateKey;
-use nouns_protocol::{BBJJ_Ec, BN254_Fr};
+use nouns_protocol::{BBJJ_Ec, BN254_Fr, PrimeField, PrivateKey};
 
 /// Parses a hex string into BBJJ PrivateKey
 /// Example: `1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef` of 32 bytes
