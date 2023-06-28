@@ -4,7 +4,10 @@ use dep::std::hash::keccak256;
 // TODO: election_id in a struct maybe
 fn verify_tally<N>(
     b_k: Field,
-    election_id: [Field; 3], // Election ID
+    // Election identifiers
+    process_id: Field,
+    contract_addr: Field,
+    chain_id: [Field; 2],
     vote_count: [Field; 3], // Vote count
     num_voters: Field, // Number of voters
     k_x: [Field; N],
@@ -23,7 +26,7 @@ fn verify_tally<N>(
     // Compute b
     for i in 0..N
     {
-        b[i] = bn254::hash_6([k_x[i], k_y[i], v[i], election_id[0], election_id[1], election_id[2]]);
+        b[i] = bn254::hash_7([k_x[i], k_y[i], v[i], chain_id[0], chain_id[1], process_id, contract_addr]);
     }
 
     // Compute b_k_prime

@@ -52,7 +52,7 @@ pub(crate) struct BallotHints {
     signed_id: Signature,
     /// `tau` representing the signature over the vote choice
     signed_v: Signature,
-    /// `k` representing the bliding factor of the vote
+    /// `k` representing the blinding factor of the vote
     k: BBJJ_Ec,
 }
 
@@ -68,12 +68,13 @@ impl Voter {
         tcls_pk: BBJJ_Ec,
         nft_account_state: U256,
         registry_account_state: U256,
+        blinding_factor: BBJJ_Fr,
         storage_proofs: (StorageProof, StorageProof),
         rng: &mut R,
     ) -> Result<(Ballot, Vec<u8>), String> {
         // Convert the parameters to the correct field
         let nft_id: [BN254_Fr; 2] = Wrapper(nft_id).into();
-        let v: BN254_Fr = Wrapper(U256::from(u8::from(v))).into();
+        let v: BN254_Fr = (v as u8).into();
         let process_id: BN254_Fr = Wrapper(process_id).into();
         let contract_addr: BN254_Fr = Wrapper(contract_addr).into();
         let chain_id: [BN254_Fr; 2] = Wrapper(chain_id).into();
@@ -103,6 +104,7 @@ impl Voter {
             tcls_pk: tcls_pk.clone(),
             // Private inputs
             v,
+            blinding_factor,
             signed_id: ballot_hints.signed_id,
             voter_address: Wrapper(self.eth_addr).into(),
             signed_v: ballot_hints.signed_v,
@@ -200,7 +202,7 @@ mod test {
     use crate::utils::mock::Mock;
     use crate::utils::VoteChoice;
     use crate::voter::Voter;
-    use crate::BBJJ_Ec;
+    use crate::{BBJJ_Ec, BBJJ_Fr};
 
     #[test]
     fn test_vote_gen() -> Result<(), String> {
@@ -217,6 +219,7 @@ mod test {
             BBJJ_Ec::mock(rng),
             U256::mock(rng),
             U256::mock(rng),
+            BBJJ_Fr::mock(rng),
             (StorageProof::mock(rng), StorageProof::mock(rng)),
             rng,
         )?;

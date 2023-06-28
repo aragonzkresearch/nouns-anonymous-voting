@@ -53,6 +53,7 @@ impl Tallier {
             .map(|x| x.mul_scalar(&self.sk_t))
             .collect::<Vec<BBJJ_Ec>>();
 
+        let chain_id_arr: [BN254_Fr; 2] = Wrapper(chain_id).into();
         // Determine votes
         let poseidon = Poseidon::new();
         let v = self.b
@@ -67,7 +68,8 @@ impl Tallier {
                                     k.x,
                                     k.y,
                                     BN254_Fr::from(*v as u8),
-                                    Wrapper(chain_id).into(), // TODO
+                                    chain_id_arr[0],
+                                    chain_id_arr[1],
                                     Wrapper(process_id).into(),
                                     Wrapper(contract_addr).into()
                                 ]

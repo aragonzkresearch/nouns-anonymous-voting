@@ -3,11 +3,26 @@ use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 use toml::Value;
 
-use crate::noir::{VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
-use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+use crate::noir::{TallyProverInput, VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
+use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, utils::VoteChoice};
 
 pub trait TomlSerializable {
     fn toml(self) -> Value;
+}
+
+impl TomlSerializable for TallyProverInput {
+    fn toml(self) -> Value {
+        let mut map = toml::map::Map::new();
+        map.insert("b_k".to_string(), self.b_k.toml());
+        map.insert("process_id".to_string(), self.process_id.toml());
+        map.insert("contract_addr".to_string(), self.contract_addr.toml());
+        map.insert("chain_id".to_string(), self.chain_id.toml());
+        map.insert("vote_count".to_string(), self.vote_count.toml());
+        map.insert("k_x".to_string(), self.k.iter().map(|p| {p.x}).collect::<Vec<_>>().toml());
+        map.insert("k_y".to_string(), self.k.iter().map(|p| {p.y}).collect::<Vec<_>>().toml());
+        map.insert("v".to_string(), self.v.toml());
+        Value::Table(map)
+    }
 }
 
 impl TomlSerializable for VoteProverInput {
@@ -31,6 +46,7 @@ impl TomlSerializable for VoteProverInput {
         map.insert("tcls_pk".to_string(), self.tcls_pk.toml());
 
         map.insert("v".to_string(), self.v.toml());
+        map.insert("blinding_factor".to_string(), self.blinding_factor.toml());
         map.insert("signed_id".to_string(), self.signed_id.toml());
         map.insert("voter_address".to_string(), self.voter_address.toml());
         map.insert("signed_v".to_string(), self.signed_v.toml());
@@ -116,6 +132,12 @@ impl TomlSerializable for u8 {
 impl TomlSerializable for usize {
     fn toml(self) -> Value {
         Value::String(format!("0x{:02x}", self))
+    }
+}
+
+impl TomlSerializable for VoteChoice {
+    fn toml(self) -> Value {
+        Value::String(format!("0x{:02x}", (self as usize)))
     }
 }
 
