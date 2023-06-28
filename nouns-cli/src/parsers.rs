@@ -93,15 +93,15 @@ pub(crate) fn parse_u256<T: Into<String>>(s: T) -> Result<U256, String> {
     let s = s.into();
 
     // Check if the string starts with 0x
-    return if s[0..2] == "0x".as_ref() {
+    if s.len() > 2 && s.starts_with("0x") {
         // If it does, we parse it as a hex string
         let s = &s[2..];
-        Ok(U256::from_be_hex(s))
-    } else {
-        // If it doesn't, we parse it as a decimal string
-        let number = s.parse::<u64>().map_err(|_| "Invalid decimal string")?;
-        Ok(U256::from(number))
-    };
+        return Ok(U256::from_be_hex(s));
+    }
+
+    // If it doesn't, we parse it as a decimal string
+    let number = s.parse::<u64>().map_err(|_| "Invalid decimal string")?;
+    Ok(U256::from(number))
 }
 
 /// Parses a Private Key

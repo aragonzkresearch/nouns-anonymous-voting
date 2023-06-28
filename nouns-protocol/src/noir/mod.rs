@@ -1,16 +1,18 @@
+#[cfg(not(feature = "mock-noir"))]
 use ::toml::to_string_pretty;
 use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 
+#[cfg(not(feature = "mock-noir"))]
 use crate::noir::toml::TomlSerializable;
 use crate::{BBJJ_Ec, BN254_Fr};
 
 mod toml;
 
 // Useful constants for storage proofs
-pub(crate) const MAX_NODE_LEN: usize = 532;
+pub const MAX_NODE_LEN: usize = 532;
 // The maximum byte length of a node
-pub(crate) const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
+pub const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
 /// The input to the Noir Vote Prover Circuit
 pub(crate) struct VoteProverInput {
@@ -49,6 +51,7 @@ pub(crate) struct VoteProverInput {
 /// Furthermore, the function makes use of the Filesystem and Shell.
 /// For the future, we should consider using a Rust Library implementation of the Noir Prover
 /// When such a library is available, we can remove the dependency on the filesystem and shell
+#[cfg(not(feature = "mock-noir"))]
 pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     let vote_prover_dir = "circuits/client-proof";
 
@@ -95,4 +98,11 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Failed to read proof from file! Error: {}", e.to_string()))?;
 
     Ok(proof)
+}
+
+#[cfg(feature = "mock-noir")]
+pub(crate) fn prove_vote(_input: VoteProverInput) -> Result<Vec<u8>, String> {
+    let dummy_proof = vec![0; 100];
+
+    Ok(dummy_proof)
 }

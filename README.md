@@ -64,3 +64,24 @@ For that, you need to provide the following information:
     cargo run -- create-process -d 10h -t '0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`
 ```
 
+### Vote
+
+This function is used to vote in a process.
+
+As part of the vote, you need to provide the following information:
+
+1. The process ID of the process you want to vote in.
+2. The NFT Index of the noun you want to vote for.
+3. The Registry Private Key of the Account you want to vote with.
+4. The TLCS Public Encryption Key that will be used to encrypt the vote. You should get this from the TLCS server.
+5. The Vote Option you want to vote for. This can be either `Yes`, `No` or `Abstain`.
+
+**Note:** make sure that the NFT indeed exists in the Nouns Token contract.
+
+```bash
+    cargo run -- vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364' 
+```
+
+
+
+

@@ -2,15 +2,12 @@ use ethers::abi::Address;
 use ethers::prelude::{BigEndianHash, BlockId, Http, Middleware, Provider, StorageProof, H256};
 use ethers::utils::keccak256;
 
+use nouns_protocol::noir::MAX_DEPTH;
+
 use crate::EthersU256;
 
-// Useful constants for storage proofs
-pub(crate) const MAX_NODE_LEN: usize = 532;
-// The maximum byte length of a node
-pub(crate) const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
-
 pub(crate) const REGISTRY_SLOT_OFFSET: u64 = 0;
-pub(crate) const NFT_OWNER_SLOT_OFFSET: u64 = 1; // TODO - find out the correct value
+pub(crate) const NFT_OWNER_SLOT_OFFSET: u64 = 3;
 
 pub(crate) const BBJJ_INTERFACE_X_ID: u8 = 0;
 pub(crate) const BBJJ_INTERFACE_Y_ID: u8 = 1;
@@ -30,7 +27,6 @@ fn map_storage_slot(slot_number: H256, map_keys: Vec<H256>) -> H256 {
 pub(crate) async fn get_nft_ownership_proof(
     eth_connection: Provider<Http>,
     nft_id: EthersU256,
-    nft_owner: Address,
     start_block_number: EthersU256,
     nouns_token_address: Address,
 ) -> Result<(EthersU256, StorageProof), String> {
@@ -39,7 +35,7 @@ pub(crate) async fn get_nft_ownership_proof(
             nouns_token_address,
             vec![map_storage_slot(
                 H256::from_uint(&NFT_OWNER_SLOT_OFFSET.into()),
-                vec![H256::from(nft_owner), H256::from_uint(&nft_id)],
+                vec![H256::from_uint(&nft_id)],
             )],
             Some(BlockId::from(start_block_number.as_u64())),
         )
@@ -47,7 +43,7 @@ pub(crate) async fn get_nft_ownership_proof(
         .map_err(|e| format!("Error getting NFT account proof: {}", e))?;
 
     // Check that the length of the proof is not too long
-    if nft_account_proof.storage_proof[0].proof.len() > MAX_NODE_LEN {
+    if nft_account_proof.storage_proof[0].proof.len() > MAX_DEPTH {
         return Err(format!(
             "NFT account proof is too long: {}",
             nft_account_proof.storage_proof[0].proof.len()
@@ -59,6 +55,9 @@ pub(crate) async fn get_nft_ownership_proof(
         .storage_proof
         .get(0)
         .ok_or("Error getting NFT account state proof")?;
+
+    println!("NFT storage value: {:?}", nft_account_state_proof.value);
+
     Ok((nft_account_state_hash, nft_account_state_proof.clone()))
 }
 
@@ -105,8 +104,82 @@ pub(crate) async fn get_zk_registry_proof(
         .storage_proof
         .get(0) // TODO: we currently only provide storage proof of the X coordinate, however we need to provide both for protocol soundness
         .ok_or("Error getting ZKRegistry state proof")?;
+
+    println!(
+        "zk registry storage value: {:?}",
+        registry_account_state_proof.value
+    );
+
     Ok((
         registry_account_state_hash,
         registry_account_state_proof.clone(),
     ))
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+    use std::sync::Arc;
+
+    use ethers::abi::AbiEncode;
+    use ethers::prelude::{
+        Address, BigEndianHash, BlockId, Http, Middleware, Provider, ProviderExt, SignerMiddleware,
+        H256, U256,
+    };
+
+    use crate::ethereum::contract_interactions::NounsToken;
+    use crate::ethereum::storage_proofs::{get_nft_ownership_proof, map_storage_slot};
+
+    #[tokio::test]
+    async fn test_nft_ownership_proof() -> Result<(), String> {
+        let nouns_address =
+            Address::from_str("0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03").unwrap();
+        let ethereum_rpc = "https://mainnet.infura.io/v3/977a6ab6091b4a1a855f51a89cc64528";
+
+        let eth_connection = Provider::<Http>::connect(ethereum_rpc).await;
+
+        let nft_id = U256::from(0);
+        let expected_address =
+            Address::from_str("0x2573C60a6D127755aA2DC85e342F7da2378a0Cc5").unwrap();
+
+        let mut offset = 0u64;
+
+        let block_number = eth_connection.get_block_number().await.unwrap();
+
+        let client = Arc::new(eth_connection.clone());
+
+        let nouns_token = NounsToken::new(nouns_address, client.clone());
+        let owner = nouns_token.owner_of(nft_id).await.unwrap();
+        let owner = U256::from_big_endian(&owner.as_bytes());
+
+        while offset < 1000000 {
+            let nft_account_proof = eth_connection
+                .get_proof(
+                    nouns_address,
+                    vec![map_storage_slot(
+                        H256::from_uint(&offset.into()),
+                        vec![H256::from_uint(&nft_id)],
+                    )],
+                    Some(BlockId::from(block_number)),
+                )
+                .await
+                .map_err(|e| format!("Error getting NFT account proof: {}", e))?;
+
+            if nft_account_proof.storage_proof[0].value == owner {
+                println!("Correct Offset: {}", offset);
+                println!(
+                    "Got value {}",
+                    nft_account_proof.storage_proof[0].value.encode_hex()
+                );
+                break;
+            } else {
+                println!("Offset {} failed, moving to next value", offset);
+                println!("Got value {}", nft_account_proof.storage_proof[0].value);
+            }
+
+            offset += 1;
+        }
+
+        return Ok(());
+    }
 }
