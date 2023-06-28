@@ -22,6 +22,7 @@ abigen!(
     r#"[
             function zkRegistry() view returns (address)
             function nounsToken() view returns (address)
+            function nextProcessId() view returns (uint256)
             function createProcess(uint256 blockDuration,uint256[2] calldata tlcsPublicKey) public returns(uint256)  
             function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,uint256 h_id,bytes calldata proof)
             function getStartBlock(uint256 processId) public view returns (uint256)
@@ -86,21 +87,25 @@ pub(crate) async fn create_process(
     const ETH_BLOCK_TIME: u64 = 12;
 
     let client = Arc::new(client);
-    let contract = NounsVoting::new(contract_address, client);
+    let nouns_voting = NounsVoting::new(contract_address, client);
 
     // Get amount of blocks for the process duration, rounded up
     let process_duration = EthersU256::from(process_duration.as_secs() / ETH_BLOCK_TIME + 1);
 
     let create_process_request =
-        contract.create_process(process_duration, wrap_into!(wrap_into!(tlcs_pbk)));
+        nouns_voting.create_process(process_duration, wrap_into!(wrap_into!(tlcs_pbk)));
 
     let tx = create_process_request
         .send()
         .await
         .map_err(|_e| format!("Error sending createProcess tx"))?;
 
+    let process_id = nouns_voting.next_process_id().call().await.map_err(|e| {
+        format!("Error getting the next process id from the NounsVoting contract: {e:?}")
+    })? - 1;
+
     println!("Tx Hash: {}", tx.tx_hash());
-    println!("Process created successfully!");
+    println!("Process created successfully with id: {}.", process_id);
 
     Ok(())
 }

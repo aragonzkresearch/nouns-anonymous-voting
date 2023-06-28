@@ -44,6 +44,8 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
 
         let contract_address = Address::from_str(contract_address)
             .map_err(|e| format!("Invalid contract address: {}", e))?;
+
+        println!("tx_private_key: {}", tx_private_key);
         let tx_private_key = parse_private_key(tx_private_key)?;
 
         GlobalCliParams {
@@ -70,7 +72,7 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
             .get_one("process-duration")
             .ok_or("Missing process duration")?;
         let tlcs_pbk: &String = matches
-            .get_one("tcls-pk")
+            .get_one("tlcs-public-key")
             .ok_or("Missing tcls public key")?;
 
         let process_duration = parse_duration(process_duration);
@@ -96,7 +98,7 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
             .get_one("vote-choice")
             .ok_or("Missing vote choice")?;
         let tlcs_pbk: &String = matches
-            .get_one("tcls-pk")
+            .get_one("tlcs-public-key")
             .ok_or("Missing tcls public key")?;
 
         let process_id =
@@ -127,7 +129,7 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
     if let Some(matches) = matches.subcommand_matches("tally") {
         let process_id: &String = matches.get_one("process-id").ok_or("Missing process id")?;
         let tcls_prk: &String = matches
-            .get_one("tcls-pk")
+            .get_one("tlcs-private-key")
             .ok_or("Missing tcls public key")?;
 
         let process_id = parse_u256(process_id)?;
@@ -178,7 +180,7 @@ fn command_constructor() -> Command {
                         .short('k')
                         .long("private-key")
                         .help("The Private Key to register in the zkRegistry under the account, that owns the NFT")
-                        .help("Example: `0x043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d`")
+                        .help("Example: `043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d`")
                         .required(true)
                         .env("REG_PRIVATE_KEY")
                 )
@@ -192,6 +194,8 @@ fn command_constructor() -> Command {
                         .long("process-duration")
                         .help("Process Duration in m(minutes)/h(hours)/d(days)")
                         .help("Example: `1d` (1 day)")
+                        .help("Example: `10h` (10 hours)")
+                        .help("Example: `100m` (1 minutes)")
                         .required(true)
                 )
                 .arg(
@@ -199,7 +203,7 @@ fn command_constructor() -> Command {
                         .short('t')
                         .long("tlcs-public-key")
                         .help("TLCS Public Key for the process end time used to encrypt the ballots")
-                        .help("Example: `0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364`")
+                        .help("Example: `'0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`")
                         .required(true)
                 ),
         )
@@ -252,7 +256,7 @@ fn command_constructor() -> Command {
                         .short('t')
                         .long("tlcs-public-key")
                         .help("TLCS Public Key for the process end time used to encrypt the ballots")
-                        .help("Example: `0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364`")
+                        .help("Example: `'0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`")
                         .required(true)
                 ),
         )

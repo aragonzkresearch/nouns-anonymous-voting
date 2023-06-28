@@ -55,14 +55,15 @@ contract NounsVoting {
     /// The address of the ZKRegistry contract
     ZKRegistry public zkRegistry;
     /// The Noir Vote Verifier contract address
-    INoirVerifier voteVerifier;
+    INoirVerifier private voteVerifier;
     /// The Noir Tally Verifier contract address
-    INoirVerifier tallyVerifier;
+    INoirVerifier private tallyVerifier;
     /// The Poseidon Hash contract address
-    Poseidon2 poseidon2;
+    Poseidon2 private poseidon2;
 
     mapping(uint256 => VotingProcess) public votingProcesses;
-    uint256 public voteId = 0;
+    // The id of the next voting process
+    uint256 public nextProcessId = 0;
 
     constructor(
         NounsToken _nounsToken,
@@ -128,7 +129,7 @@ contract NounsVoting {
             args: args
         });
 
-        votingProcesses[voteId] = VotingProcess({
+        votingProcesses[nextProcessId] = VotingProcess({
             startBlockHash: blockhash(block.number),
             startBlock: block.number,
             endBlock: block.number + blockDuration,
@@ -142,9 +143,9 @@ contract NounsVoting {
         });
 
         // Increase the voteId for the next voting process
-        voteId += 1;
+        nextProcessId += 1;
 
-        return voteId - 1;
+        return nextProcessId;
     }
 
     /// @notice This function is called by voter to submit their vote
