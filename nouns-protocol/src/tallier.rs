@@ -1,236 +1,186 @@
-// use ark_ff::PrimeField;
-// use ark_std::rand::Rng;
-// use poseidon_ark::Poseidon;
-// use std::str::FromStr;
-// use strum::IntoEnumIterator;
-// use toml::Value;
-//
-// use crate::voter::Voter;
-//
-// #[derive(Debug)]
-// pub struct VoteAggregation {
-//     pub(crate) b_k: BN254_Fr,
-//     pub(crate) election_id: ElectionIdentifier,
-//     pub(crate) vote_count: Vec<usize>,
-//     pub(crate) k: Vec<BBJJ_G1>,
-//     pub(crate) v: Vec<VoteChoice>,
-// }
-//
-// impl VoteAggregation {
-//     fn new(
-//         // Public inputs
-//         b_k: BN254_Fr,
-//         election_id: ElectionIdentifier,
-//         vote_count: Vec<usize>,
-//         // Witnesses
-//         k: Vec<BBJJ_G1>,
-//         v: Vec<VoteChoice>,
-//     ) -> Self {
-//         // Ensure `k` and `v` have the same length
-//         assert!(k.len() == v.len(), "Vector size mismatch");
-//
-//         // Ensure `vote_count` has length equal to the number of possible choices
-//         assert!(vote_count.len() == VoteChoice::iter().len());
-//
-//         Self {
-//             b_k,
-//             election_id,
-//             vote_count,
-//             k,
-//             v,
-//         }
-//     }
-//
-//     fn proof_package(
-//         election_id: ElectionIdentifier,
-//         a: Vec<BBJJ_G1>,
-//         b: Vec<BN254_Fr>,
-//         sk_t: BBJJ_Fr, // TODO
-//         b_k: BN254_Fr,
-//     ) -> Self {
-//         // Compute `k`
-//         let k = a
-//             .iter()
-//             .map(|x| x.mul_scalar(&sk_t))
-//             .collect::<Vec<BBJJ_G1>>();
-//
-//         // Determine votes
-//         let poseidon = Poseidon::new();
-//         let v = b
-//             .iter()
-//             .zip(k.iter())
-//             .map(|(b, k)| {
-//                 VoteChoice::iter()
-//                     .filter(|v| {
-//                         poseidon
-//                             .hash(concat_vec![
-//                                 <Wrapper<BBJJ_G1> as Into<Vec<BN254_Fr>>>::into(Wrapper(k.clone())),
-//                                 vec![
-//                                     v.clone().into(),
-//                                     election_id.chain_id,
-//                                     election_id.process_id,
-//                                     election_id.contract_addr
-//                                 ]
-//                             ])
-//                             .expect("Error computing Poseidon hash!")
-//                             .eq(b)
-//                     })
-//                     .next()
-//                     .expect("Error: No matching vote!")
-//             })
-//             .collect::<Vec<VoteChoice>>();
-//         let vote_count = VoteChoice::iter()
-//             .map(|choice| v.iter().map(|v| if *v == choice { 1 } else { 0 }).sum())
-//             .collect::<Vec<usize>>();
-//         Self::new(b_k, election_id, vote_count, k, v)
-//     }
-//     // Mock aggregation with 2000 voters
-//     fn simulate<R: Rng>(rng: &mut R, num_voters: usize) -> Self {
-//         // TODO: async
-//         let poseidon = Poseidon::new();
-//
-//         let sk_t = BBJJ_Fr::from_be_bytes_mod_order(&BBJJ_Pr_Key::mock(rng).key);
-//         let election_params = ElectionParams {
-//             id: ElectionIdentifier::mock(rng),
-//             tlock: TLockParams {
-//                 pk_t: B8.mul_scalar(&sk_t),
-//             },
-//         };
-//         let nft_id = BN254_Fr::rand(rng);
-//         let vote_choice = VoteChoice::Yes;
-//
-//         let voter_pkg = (0..num_voters)
-//             .map(|_| {
-//                 let voter = Voter::mock(rng);
-//                 futures::executor::block_on(voter // TODO: async
-//                     .package_vote_for_proving(rng, &election_params, &vote_choice, &nft_id))
-//                     .expect("Error generating voter proof package.")
-//             })
-//             .collect::<Vec<VoteProverPackage>>();
-//
-//         let a = voter_pkg
-//             .iter()
-//             .map(|pkg| pkg.public_input.a.clone())
-//             .collect::<Vec<BBJJ_G1>>();
-//         let b = voter_pkg
-//             .iter()
-//             .map(|pkg| pkg.public_input.b)
-//             .collect::<Vec<BN254_Fr>>();
-//         let election_id = election_params.id;
-//         let b_k = b
-//             .clone()
-//             .into_iter()
-//             .reduce(|acc, x| {
-//                 poseidon
-//                     .hash(vec![x, acc])
-//                     .expect("Error computing Poseidon hash!")
-//             })
-//             .unwrap();
-//
-//         Self::proof_package(election_id, a, b, sk_t, b_k)
-//     }
-// }
-//
-// impl TomlSerializable for VoteAggregation {
-//     fn toml(self) -> Value {
-//         let mut map = toml::map::Map::new();
-//
-//         let num_voters = self.v.len();
-//         // Figure out whether num_voters is <= 16, 256, 512, 1024, 2048
-//         let padded_len: usize = [16, 256, 512, 1024, 2048]
-//             .into_iter()
-//             .filter(|x| x >= &num_voters)
-//             .next()
-//             .expect("Error: There are too many voters.");
-//
-//         let pad_vec = |v: Vec<BN254_Fr>| {
-//             v.into_iter()
-//                 .chain(
-//                     std::iter::repeat(BN254_Fr::from_str("0").unwrap())
-//                         .take(padded_len - num_voters),
-//                 )
-//                 .collect::<Vec<_>>()
-//         };
-//
-//         map.insert("num_voters".to_string(), self.v.len().toml());
-//         map.insert("b_k".to_string(), self.b_k.toml());
-//         map.insert("election_id".to_string(), self.election_id.toml());
-//         map.insert("vote_count".to_string(), self.vote_count.toml());
-//         map.insert(
-//             "k_x".to_string(),
-//             pad_vec(self.k.iter().map(|p| p.x).collect::<Vec<BN254_Fr>>()).toml(),
-//         );
-//         map.insert(
-//             "k_y".to_string(),
-//             pad_vec(self.k.iter().map(|p| p.y).collect::<Vec<BN254_Fr>>()).toml(),
-//         );
-//         map.insert(
-//             "v".to_string(),
-//             pad_vec(
-//                 self.v
-//                     .into_iter()
-//                     .map(|v| <VoteChoice as Into<BN254_Fr>>::into(v))
-//                     .collect::<Vec<_>>(),
-//             )
-//             .toml(),
-//         );
-//
-//         Value::Table(map)
-//     }
-// }
-//
-// #[test]
-// fn tally10() -> Result<(), String> {
-//     let mut rng = ark_std::test_rng();
-//     let va = VoteAggregation::simulate(&mut rng, 10);
-//
-//     println!("vote_aggregation: {:?}", va);
-//
-//     let prover_toml_string = toml::to_string_pretty(&va.toml())
-//         .map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
-//
-//     // Move to circuit directory
-//     std::env::set_current_dir("circuits/16_voters").map_err(|e| e.to_string())?;
-//
-//     // Write Toml file
-//     std::fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
-//
-//     // Generate proof
-//     // std::process::Command::new("nargo")
-//     //     .arg("prove")
-//     //     .arg("p")
-//     //     .status()
-//     //     .expect("Failed to generate proof.");
-//
-//     Ok(())
-// }
-//
-// #[test]
-// fn tally200() -> Result<(), String> {
-//     let mut rng = ark_std::test_rng();
-//     let va = VoteAggregation::simulate(&mut rng, 200);
-//
-//     println!("vote_aggregation: {:?}", va);
-//
-//     let prover_toml_string = toml::to_string_pretty(&va.toml())
-//         .map_err(|e| format!("Failed to generate Prover.toml: {}", e.to_string()))?;
-//
-//     // Move to circuit directory
-//     std::env::set_current_dir("circuits/256_voters").map_err(|e| e.to_string())?;
-//
-//     // Write Toml file
-//     std::fs::write("Prover.toml", prover_toml_string).map_err(|e| e.to_string())?;
-//
-//     // Generate proof
-//     // std::process::Command::new("nargo")
-//     //     .arg("prove")
-//     //     .arg("p")
-//     //     .status()
-//     //     .expect("Failed to generate proof.");
-//
-//     Ok(())
-// }
-//
-// struct Tallier {}
-//
-// impl Tallier {}
+use ark_std::iterable::Iterable;
+use ethers::{core::k256::U256, prelude::Address};
+use poseidon_ark::Poseidon;
+use strum::IntoEnumIterator;
+
+use crate::noir::TallyProverInput;
+use crate::{noir, utils::VoteChoice, wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, Wrapper};
+
+/// Results of the tally to be fed to the tally verification circuit.
+pub struct Tally {
+    pub(crate) vote_count: [usize; 3],
+}
+
+/// Represents a tallying authority
+/// Note that the tallying authority is stateless as anyone can tally
+pub struct Tallier;
+
+/// Truncated Voter Ballot stored on the blockchain
+/// Contains key information to decrypt the vote
+#[derive(Clone, Debug)]
+pub struct TruncatedBallot {
+    pub(crate) a: BBJJ_Ec,
+    pub(crate) b: BN254_Fr,
+}
+
+impl Tallier {
+    /// Function that tallies the votes and returns the [Tally] results
+    /// @param ballots: The truncated ballots of the voters who voted
+    /// @param tlcs_prk: The TLCS secret key for time T used to decrypt the votes
+    /// @param ballot_hash: The hash of the chain of ballots, used to verify that no votes were missed
+    /// @param chain_id: The chain id of the blockchain
+    /// @param process_id: The process id of the process
+    /// @param contract_addr: The address of the contract
+    fn tally(
+        ballots: Vec<TruncatedBallot>,
+        tlcs_prk: BBJJ_Fr,
+        ballot_hash: BN254_Fr,
+        chain_id: U256,
+        process_id: U256,
+        contract_addr: Address,
+    ) -> Result<(Tally, Vec<u8>), String> {
+        let process_id: BN254_Fr = wrap_into!(process_id);
+        let contract_addr: BN254_Fr = wrap_into!(contract_addr);
+        let chain_id: [BN254_Fr; 2] = wrap_into!(chain_id);
+
+        let (vote_choices, tally) =
+            Self::gen_tally_with_hints(&ballots, &tlcs_prk, process_id, contract_addr, chain_id)?;
+
+        // Generate a proof
+        let noir_input = TallyProverInput {
+            // Public inputs
+            b_k: ballot_hash,
+            process_id,
+            contract_addr,
+            chain_id,
+            vote_count: tally.vote_count,
+            // Private inputs
+            k: ballots
+                .iter()
+                .map(|ballot| ballot.a.mul_scalar(&tlcs_prk))
+                .collect(),
+            v: vote_choices,
+        };
+
+        let proof = noir::prove_tally(noir_input)?;
+
+        Ok((tally, proof))
+    }
+
+    fn gen_tally_with_hints(
+        ballots: &Vec<TruncatedBallot>,
+        tlcs_prk: &BBJJ_Fr,
+        process_id: BN254_Fr,
+        contract_addr: BN254_Fr,
+        chain_id: [BN254_Fr; 2],
+    ) -> Result<(Vec<VoteChoice>, Tally), String> {
+        let poseidon = Poseidon::new();
+
+        let vote_options = VoteChoice::iter().collect::<Vec<VoteChoice>>();
+
+        // Attempt to decrypt the votes
+        let vote_choices = ballots.iter().map(|ballot| {
+            let k = ballot.a.mul_scalar(tlcs_prk);
+
+            for vote_candidate in vote_options.clone() {
+                let candidate_b = poseidon.hash(vec![
+                    k.x,
+                    k.y,
+                    vote_candidate.into(),
+                    chain_id[0],
+                    chain_id[1],
+                    process_id,
+                    contract_addr,
+                ])?;
+
+                if candidate_b == ballot.b {
+                    return Ok(vote_candidate);
+                } else {
+                    continue;
+                }
+            }
+
+            Err("Error: No matching vote!".to_string())
+        });
+
+        // Check if any of the votes failed to decrypt and return an error
+        let failed_voters: Vec<usize> = vote_choices
+            .clone()
+            .enumerate()
+            .filter(|(_, v)| v.is_err())
+            .map(|(i, _)| i)
+            .collect();
+
+        if failed_voters.len() > 0 {
+            return Err(format!(
+                "Failed to decrypt votes for voters: {:?}",
+                failed_voters
+            ));
+        }
+
+        // Calculate the vote count for each vote option
+        let vote_choices: Vec<VoteChoice> = vote_choices.map(|v| v.unwrap()).collect();
+
+        let result: Vec<(VoteChoice, usize)> = vote_options
+            .iter()
+            .map(|v| {
+                let amount = vote_choices.iter().filter(|&choice| choice == v).count();
+
+                (*v, amount)
+            })
+            .collect();
+
+        let vote_count = if vote_options.len() == 3 {
+            [result[0].1, result[1].1, result[2].1]
+        } else {
+            return Err("Error: Invalid number of vote options! Should be 3!".to_string());
+        };
+
+        let tally = Tally { vote_count };
+        Ok((vote_choices, tally))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use ethers::core::k256::U256;
+    use ethers::prelude::Address;
+    use rand::Rng;
+
+    use crate::tallier::{Tallier, TruncatedBallot};
+    use crate::utils::mock::Mock;
+    use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+
+    #[test]
+    fn test_tally_gen() -> Result<(), String> {
+        let rng = &mut ark_std::test_rng();
+
+        // Test that the function fails as with random inputs it is unlikely that the votes will be decrypted
+        let res = Tallier::tally(
+            vec![
+                TruncatedBallot {
+                    a: BBJJ_Ec::mock(rng),
+                    b: BN254_Fr::mock(rng),
+                },
+                TruncatedBallot {
+                    a: BBJJ_Ec::mock(rng),
+                    b: BN254_Fr::mock(rng),
+                },
+                TruncatedBallot {
+                    a: BBJJ_Ec::mock(rng),
+                    b: BN254_Fr::mock(rng),
+                },
+            ],
+            BBJJ_Fr::mock(rng),
+            BN254_Fr::mock(rng),
+            U256::mock(rng),
+            U256::from(rng.gen_range(0..100u8)),
+            Address::mock(rng),
+        )
+        .is_err();
+
+        assert!(res);
+
+        Ok(())
+    }
+}

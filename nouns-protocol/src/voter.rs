@@ -52,8 +52,9 @@ pub(crate) struct BallotHints {
     signed_id: Signature,
     /// `tau` representing the signature over the vote choice
     signed_v: Signature,
-    /// `k` representing the bliding factor of the vote
+    /// `k` representing the blinding factor of the vote
     k: BBJJ_Ec,
+    blinding_factor: BBJJ_Fr,
 }
 
 impl Voter {
@@ -65,7 +66,7 @@ impl Voter {
         process_id: U256,
         contract_addr: Address,
         chain_id: U256,
-        tcls_pk: BBJJ_Ec,
+        tlcs_pk: BBJJ_Ec,
         nft_account_state: U256,
         registry_account_state: U256,
         storage_proofs: (StorageProof, StorageProof),
@@ -73,7 +74,7 @@ impl Voter {
     ) -> Result<(Ballot, Vec<u8>), String> {
         // Convert the parameters to the correct field
         let nft_id: [BN254_Fr; 2] = Wrapper(nft_id).into();
-        let v: BN254_Fr = Wrapper(U256::from(u8::from(v))).into();
+        let v: BN254_Fr = (v as u8).into();
         let process_id: BN254_Fr = Wrapper(process_id).into();
         let contract_addr: BN254_Fr = Wrapper(contract_addr).into();
         let chain_id: [BN254_Fr; 2] = Wrapper(chain_id).into();
@@ -85,7 +86,7 @@ impl Voter {
             process_id,
             contract_addr,
             chain_id,
-            tcls_pk.clone(),
+            tlcs_pk.clone(),
             rng,
         )?;
 
@@ -100,9 +101,10 @@ impl Voter {
             chain_id,
             registry_account_state: Wrapper(registry_account_state).into(),
             nft_account_state: Wrapper(nft_account_state).into(),
-            tcls_pk: tcls_pk.clone(),
+            tlcs_pk: tlcs_pk.clone(),
             // Private inputs
             v,
+            blinding_factor: ballot_hints.blinding_factor,
             signed_id: ballot_hints.signed_id,
             voter_address: Wrapper(self.eth_addr).into(),
             signed_v: ballot_hints.signed_v,
@@ -186,6 +188,7 @@ impl Voter {
                 signed_id,
                 signed_v,
                 k: k.clone(),
+                blinding_factor,
             },
         ));
     }

@@ -7,7 +7,7 @@ use ethers::types::{Address, H256};
 use rand::Rng;
 
 use crate::voter::Voter;
-use crate::{BBJJ_Ec, BBJJ_Fr, VoteChoice, BBJJ_G1};
+use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, VoteChoice, BBJJ_G1};
 
 /// Mock trait is used to generate mock data for testing
 pub trait Mock {
@@ -82,41 +82,12 @@ impl Mock for BBJJ_Fr {
         BBJJ_Fr::from_be_bytes_mod_order(num.to_be_bytes().as_slice())
     }
 }
-//
-// impl Mock for ElectionParams {
-//     fn mock<R: Rng>(rng: &mut R) -> Self {
-//         ElectionParams {
-//             id: ElectionIdentifier::mock(rng),
-//             tlock: TLockParams::mock(rng),
-//         }
-//     }
-// }
-//
-// impl Mock for BBJJ_Pr_Key {
-//     fn mock<R: Rng>(rng: &mut R) -> Self {
-//         let mut RK_i = vec![0u8; 32];
-//         rng.fill_bytes(&mut RK_i);
-//         BBJJ_Pr_Key::import(RK_i).expect("Could not generate a mock BBJJ Private Key.")
-//     }
-// }
-//
-// impl Mock for VoteChoice {
-//     fn mock<R: Rng>(rng: &mut R) -> Self {
-//         match rng.gen_range(0..3) {
-//             0 => VoteChoice::Yes,
-//             1 => VoteChoice::No,
-//             2 => VoteChoice::Abstain,
-//             _ => panic!("Invalid vote choice"),
-//         }
-//     }
-// }
-//
-// impl Mock for ElectionIdentifier {
-//     fn mock<R: Rng>(rng: &mut R) -> Self {
-//         ElectionIdentifier {
-//             chain_id: BN254_Fr::from(0u8),
-//             process_id: BN254_Fr::from(4u8),
-//             contract_addr: BN254_Fr::rand(rng),
-//         }
-//     }
-// }
+
+impl Mock for BN254_Fr {
+    fn mock<R: Rng>(rng: &mut R) -> Self {
+        // Generate a random U256
+        let num = U256::mock(rng);
+
+        BN254_Fr::from_be_bytes_mod_order(num.to_be_bytes().as_slice())
+    }
+}

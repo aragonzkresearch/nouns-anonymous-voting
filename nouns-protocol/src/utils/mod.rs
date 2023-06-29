@@ -1,31 +1,24 @@
+use strum_macros::EnumIter;
+
+use crate::BN254_Fr;
+
 #[cfg(test)]
 pub(crate) mod mock;
 
 pub(crate) mod wrapper;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum VoteChoice {
-    Yes,
     No,
+    Yes,
     Abstain,
-}
-
-impl From<u8> for VoteChoice {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Self::Yes,
-            1 => Self::No,
-            2 => Self::Abstain,
-            _ => panic!("Invalid vote choice"),
-        }
-    }
 }
 
 impl From<VoteChoice> for u8 {
     fn from(value: VoteChoice) -> Self {
         match value {
-            VoteChoice::Yes => 0,
-            VoteChoice::No => 1,
+            VoteChoice::No => 0,
+            VoteChoice::Yes => 1,
             VoteChoice::Abstain => 2,
         }
     }
@@ -34,13 +27,23 @@ impl From<VoteChoice> for u8 {
 impl From<&str> for VoteChoice {
     fn from(value: &str) -> Self {
         match value.to_lowercase().as_str() {
-            "yes" => Self::Yes,
             "no" => Self::No,
+            "yes" => Self::Yes,
             "abstain" => Self::Abstain,
-            "y" => Self::Yes,
             "n" => Self::No,
+            "y" => Self::Yes,
             "a" => Self::Abstain,
             _ => panic!("Invalid vote choice"),
+        }
+    }
+}
+
+impl From<VoteChoice> for BN254_Fr {
+    fn from(value: VoteChoice) -> Self {
+        match value {
+            VoteChoice::No => Self::from(u8::from(VoteChoice::No)),
+            VoteChoice::Yes => Self::from(u8::from(VoteChoice::Yes)),
+            VoteChoice::Abstain => Self::from(u8::from(VoteChoice::Abstain)),
         }
     }
 }
