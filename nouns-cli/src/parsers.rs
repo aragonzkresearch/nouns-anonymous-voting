@@ -4,13 +4,17 @@ use std::time::Duration;
 use ethers::core::k256::U256;
 use ethers::utils::hex;
 
-use ark_ff::PrimeField;
-use babyjubjub_ark::PrivateKey;
-use nouns_protocol::{BBJJ_Ec, BN254_Fr};
+use nouns_protocol::{BBJJ_Ec, BN254_Fr, PrimeField, PrivateKey};
 
 /// Parses a hex string into BBJJ PrivateKey
 /// Example: `1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef` of 32 bytes
-pub(crate) fn parse_bbjj_prk(key_to_reg: &String) -> Result<PrivateKey, String> {
+pub(crate) fn parse_bbjj_prk(private_bbjj_key: &String) -> Result<PrivateKey, String> {
+    let key_to_reg = if private_bbjj_key.starts_with("0x") {
+        private_bbjj_key[2..].to_string()
+    } else {
+        private_bbjj_key.to_string()
+    };
+
     PrivateKey::import(
         hex::decode(key_to_reg).map_err(|e| format!("Failed to parse hex string: {}", e))?,
     )
@@ -43,6 +47,7 @@ pub(crate) fn parse_duration<T: Into<String>>(s: T) -> Duration {
 }
 
 /// Parses a be TLCS Public Key string into a BBJJ_Ec
+/// Example: `0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef,0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef`
 pub(crate) fn parse_tlcs_pbk<T: Into<String>>(s: T) -> Result<BBJJ_Ec, String> {
     let s = s.into();
     let mut chars = s.chars();
@@ -55,7 +60,19 @@ pub(crate) fn parse_tlcs_pbk<T: Into<String>>(s: T) -> Result<BBJJ_Ec, String> {
         x.push(c);
     }
     while let Some(c) = chars.next() {
+        if c == ' ' {
+            continue;
+        }
+
         y.push(c);
+    }
+
+    // Remove the 0x prefix
+    if x.starts_with("0x") {
+        x = x[2..].to_string();
+    }
+    if y.starts_with("0x") {
+        y = y[2..].to_string();
     }
 
     let x = BN254_Fr::from_be_bytes_mod_order(
@@ -76,20 +93,26 @@ pub(crate) fn parse_u256<T: Into<String>>(s: T) -> Result<U256, String> {
     let s = s.into();
 
     // Check if the string starts with 0x
-    return if s[0..2] == "0x".as_ref() {
+    if s.len() > 2 && s.starts_with("0x") {
         // If it does, we parse it as a hex string
         let s = &s[2..];
-        Ok(U256::from_be_hex(s))
-    } else {
-        // If it doesn't, we parse it as a decimal string
-        let number = s.parse::<u64>().map_err(|_| "Invalid decimal string")?;
-        Ok(U256::from(number))
-    };
+        return Ok(U256::from_be_hex(s));
+    }
+
+    // If it doesn't, we parse it as a decimal string
+    let number = s.parse::<u64>().map_err(|_| "Invalid decimal string")?;
+    Ok(U256::from(number))
 }
 
 /// Parses a Private Key
 /// Example: `1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef` (be 32 bytes)
 pub(crate) fn parse_private_key(private_key: &String) -> Result<[u8; 32], String> {
+    let private_key = if private_key.starts_with("0x") {
+        private_key[2..].to_string()
+    } else {
+        private_key.to_string()
+    };
+
     let tx_private_key =
         hex::decode(private_key).map_err(|e| format!("Invalid private key: {}", e))?;
     let tx_private_key = <[u8; 32]>::try_from(tx_private_key.deref())
