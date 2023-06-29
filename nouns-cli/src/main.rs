@@ -106,8 +106,8 @@ async fn main() {
         CliCommand::Tally(process_id, tlcs_prk) => {
             tally(
                 client,
-                wrap_into!(chain_id),
                 global_param.contract_address,
+                wrap_into!(chain_id),
                 process_id,
                 tlcs_prk,
             )

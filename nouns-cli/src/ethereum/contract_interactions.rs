@@ -32,9 +32,12 @@ abigen!(
             function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,uint256 h_id,bytes calldata proof)
             function submitTallyResult(uint256 processId,uint256[3] memory tallyResult,bytes calldata proof) public
             function getStartBlock(uint256 processId) public view returns (uint64)
+            function getEndBlock(uint256 processId) public view returns (uint64)
             function getBallotsHash(uint256 processId) public view returns (uint256) 
-
-            event BallotCast(uint256 processId, uint256 a_x, uint256 a_y, uint256 b)        ]"#,
+            function getTallyResult(uint256 processId) public view returns (uint256[3] memory)
+            
+            event BallotCast(uint256 indexed processId, uint256 indexed a_x, uint256 indexed a_y, uint256 indexed b)
+        ]"#,
 );
 
 abigen!(
@@ -244,8 +247,8 @@ pub(crate) async fn vote(
 /// Function to tally the votes in an existing voting process in the NounsVoting contract.
 pub(crate) async fn tally(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
-    chain_id: U256,
     nouns_voting_address: Address,
+    chain_id: U256,
     process_id: U256,
     tlcs_prk: PrivateKey,
 ) -> Result<(), String> {
@@ -264,7 +267,6 @@ pub(crate) async fn tally(
     let filter = nouns_voting
         .ballot_cast_filter()
         .filter
-        .topic1(vec![H256::from_uint(&wrap_into!(process_id))])
         .from_block(U64::from(process_start_block));
 
     let logs = client.get_logs(&filter).await.map_err(|_| {
@@ -276,9 +278,9 @@ pub(crate) async fn tally(
 
     let mut ballots: Vec<TruncatedBallot> = Vec::new();
     for log in logs {
-        let a_x: U256 = wrap_into!(log.topics[2].into_uint());
-        let a_y: U256 = wrap_into!(log.topics[3].into_uint());
-        let b: U256 = wrap_into!(log.topics[4].into_uint());
+        let a_x: U256 = wrap_into!(log.topics[1].into_uint());
+        let a_y: U256 = wrap_into!(log.topics[2].into_uint());
+        let b: U256 = wrap_into!(log.topics[3].into_uint());
 
         let truncated_ballot = TruncatedBallot {
             a: wrap_into!([a_x, a_y]),
@@ -326,18 +328,26 @@ pub(crate) async fn tally(
 
 #[cfg(test)]
 mod test {
-    use std::ops::Add;
+    use std::ops::{Add, Sub};
     use std::str::FromStr;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use ethers::abi::Address;
+    use ethers::core::k256::ecdsa::SigningKey;
     use ethers::middleware::SignerMiddleware;
-    use ethers::prelude::{abigen, Http, LocalWallet, Middleware, Provider, ProviderExt, Signer};
+    use ethers::prelude::{
+        abigen, LocalWallet, Middleware, ProviderExt, Signer, TransactionRequest, Wallet,
+    };
+    use ethers::providers::Http;
+    use ethers::providers::Provider;
     use ethers::types::U256;
 
-    use nouns_protocol::PrivateKey;
+    use nouns_protocol::{wrap, wrap_into, PrivateKey, VoteChoice, Wrapper};
 
-    use crate::ethereum::contract_interactions::{NounsToken, NounsVoting};
+    use crate::ethereum::contract_interactions::{
+        create_process, reg_key, tally, vote, NounsToken, NounsVoting,
+    };
 
     abigen!(
         NounsTokenTest,
@@ -350,7 +360,10 @@ mod test {
     );
 
     #[tokio::test]
-    async fn mint_nouns_to_self() {
+    async fn integration_test_of_contract_interactions() -> Result<(), String> {
+        // Load the variables from the .env file using dotenv
+        dotenv::dotenv().ok();
+
         // Get from the environment the TX_PRIVATE_KEY value
         let tx_private_key = std::env::var("TX_PRIVATE_KEY").expect("TX_PRIVATE_KEY not set");
 
@@ -370,10 +383,10 @@ mod test {
             .map_err(|_e| "Could not get chain id".to_string())
             .unwrap();
 
-        let client = Arc::new(SignerMiddleware::new(
+        let client = SignerMiddleware::new(
             eth_connection.clone(),
             wallet.with_chain_id(chain_id.as_u64()),
-        ));
+        );
 
         // Get from the environment the VOTING_ADDRESS value
         let voting_address = Address::from_str(
@@ -383,29 +396,181 @@ mod test {
         )
         .expect("Error parsing VOTING_ADDRESS");
         println!("Voting address: {}", voting_address);
+        let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
 
+        let token_ids =
+            obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
+                .await
+                .map_err(|e| format!("Error obtaining token ids: {}", e))?;
+
+        // Get the TokenIds owned by the wallet
+        println!("Token ids: {:?}", token_ids);
+
+        // Get the TLCS key pair
+        let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
+        let tlcs_pubk = tlcs_prk.public();
+
+        // Generate the Voter BBJJ Private Key
+        // We do it in a function as PrivateKey does not implement Clone
+        fn voter_bbjj_prk() -> PrivateKey {
+            PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
+        }
+
+        println!("\n\n1. Registering key...\n");
+
+        // Register the key
+        reg_key(client.clone(), voting_address, voter_bbjj_prk())
+            .await
+            .map_err(|e| format!("Error registering key: {}", e))?;
+
+        println!("\nKey registered successfully!\n\n\n");
+        println!("2. Creating process...\n");
+
+        // Start the voting process
+        let duration = Duration::from_secs(120); // 1 block confirmation time
+        create_process(client.clone(), voting_address, duration, tlcs_pubk.clone())
+            .await
+            .map_err(|e| format!("Error creating process: {}", e))?;
+
+        // Get the process id
+        let next_process_id = nouns_voting
+            .next_process_id()
+            .call()
+            .await
+            .expect("Error getting process id");
+        let process_id = next_process_id.sub(U256::one());
+
+        println!(
+            "\nProcess created successfully with id {}!\n\n\n",
+            process_id
+        );
+        println!("3. Submitting ballot...\n");
+
+        // Submit a ballot
+        vote(
+            client.clone(),
+            eth_connection.clone(),
+            voting_address,
+            wrap_into!(process_id),
+            wrap_into!(token_ids[0]),
+            wrap_into!(chain_id),
+            voter_bbjj_prk(),
+            VoteChoice::Yes,
+            tlcs_pubk,
+        )
+        .await
+        .map_err(|e| format!("Error voting: {}", e))?;
+
+        println!(
+            "\nBallot submitted successfully for tokenid {}!\n\n\n",
+            token_ids[0]
+        );
+
+        // Generate a tallier
+
+        println!("4. Tallying...\n");
+
+        // Get the process end block number
+        let process_end_block = nouns_voting
+            .get_end_block(process_id)
+            .call()
+            .await
+            .expect("Error getting process end block");
+
+        // Get the current block number
+        let mut current_block = eth_connection
+            .get_block_number()
+            .await
+            .expect("Error getting current block number");
+
+        if current_block.as_u64() < process_end_block {
+            println!(
+                "Process has not yet ended! Going to mine the next {} blocks",
+                process_end_block - current_block.as_u64()
+            );
+        }
+
+        // Check that the process has ended
+        while current_block.as_u64() < process_end_block {
+            // Do transactions to increase the block number
+
+            let tx = TransactionRequest::new()
+                .to(wallet_address)
+                .value(100000)
+                .gas_price(1);
+            let sent_tx = client
+                .send_transaction(tx, None)
+                .await
+                .map_err(|_e| format!("Error sending transaction to increase block number",))?;
+            let _receipt = sent_tx.await.map_err(|_e| {
+                format!(
+                    "Error waiting for transaction to increase block number: {:?}",
+                    _e
+                )
+            })?;
+
+            current_block = eth_connection
+                .get_block_number()
+                .await
+                .expect("Error getting current block number");
+        }
+
+        println!("Process has ended! Proceeding to tally.",);
+
+        tally(
+            client.clone(),
+            voting_address,
+            wrap_into!(chain_id),
+            wrap_into!(process_id),
+            tlcs_prk,
+        )
+        .await
+        .map_err(|e| format!("Error tallying: {}", e))?;
+
+        let result = nouns_voting
+            .get_tally_result(process_id)
+            .call()
+            .await
+            .expect("Error getting tally");
+
+        println!(
+            "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
+            result[0], result[1], result[2]
+        );
+
+        Ok(())
+    }
+
+    async fn obtain_token_ids_to_vote(
+        wallet_address: Address,
+        nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+        client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+    ) -> Result<Vec<U256>, String> {
+        let client = Arc::new(client);
         // Request from voting contract the nouns token address
-        let nouns_voting = NounsVoting::new(voting_address, client.clone());
         let nouns_token_address = nouns_voting.nouns_token().call().await.unwrap();
         let nouns_token = NounsTokenTest::new(nouns_token_address, client);
 
-        // get the balance of the account
-        let balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
-        println!("Balance: {}", balance);
+        // Get the balance of the account and check if user has any tokens or can mint new ones
+        let mut balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
         let minter = nouns_token.minter().call().await.unwrap();
-        if minter != wallet_address {
-            println!("Minter is not the wallet address");
-        } else {
-            println!("Minter is the wallet address");
+
+        if minter != wallet_address && balance == U256::zero() {
+            Err(
+                "User has no tokens and cannot mint new ones. Thus will not be able to vote."
+                    .to_string(),
+            )?;
         }
 
-        // Call mint function for nouns token if balance is 0
+        // If balance is zero, but can mint, call mint function for nouns token
         if balance == U256::zero() && minter == wallet_address {
             let request = nouns_token.mint();
-            let tx = request.send().await.unwrap();
+            let _tx = request.send().await.unwrap();
+            balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
         }
 
         // Print the id of all owned tokens
+        let mut token_ids = vec![];
         let mut index = U256::from(0);
         while balance > index {
             let token_id = nouns_token
@@ -413,8 +578,11 @@ mod test {
                 .call()
                 .await
                 .unwrap();
-            println!("Token id: {}", token_id);
+
+            token_ids.push(token_id);
             index = index.add(U256::from(1));
         }
+
+        Ok(token_ids)
     }
 }

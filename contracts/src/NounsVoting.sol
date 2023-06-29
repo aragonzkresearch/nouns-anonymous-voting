@@ -49,7 +49,7 @@ contract NounsVoting {
     }
 
     /// This when a voter submits a vote
-    event BallotCast(uint256 processId, uint256 a_x, uint256 a_y, uint256 b);
+    event BallotCast(uint256 processId, uint256 indexed a_x, uint256 indexed a_y, uint256 indexed b);
 
     bytes32[] public_args;
 
@@ -264,9 +264,17 @@ contract NounsVoting {
     /// @notice This function returns the block number when the voting process started
     /// @param processId The id of the voting process
     /// @return The block number when the voting process started
-    function getStartBlock(uint256 processId) public view returns (uint256) {
+    function getStartBlock(uint256 processId) public view returns (uint64) {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
         return votingProcesses[processId].startBlock;
+    }
+
+    /// @notice This function returns the block number when the voting process ends
+    /// @param processId The id of the voting process
+    /// @return The block number when the voting process ends
+    function getEndBlock(uint256 processId) public view returns (uint64) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].endBlock;
     }
 
     /// @notice This function returns the ballot hash of the voting process
@@ -275,6 +283,19 @@ contract NounsVoting {
     function getBallotsHash(uint256 processId) public view returns (uint256) {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
         return votingProcesses[processId].ballotsHash;
+    }
+
+    /// @notice This function returns the result of the voting process as a tuple of votes against, for and abstaining from voting
+    /// @param processId The id of the voting process
+    /// @return The result of the voting process as a tuple of votes against, for and abstaining from voting
+    function getTallyResult(uint256 processId) public view returns (uint256[3] memory) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        require(votingProcesses[processId].finished, "Voting process has not finished");
+        return [
+            votingProcesses[processId].votesAgainst,
+            votingProcesses[processId].votesFor,
+            votingProcesses[processId].votesAbstain
+            ];
     }
 
     /// @notice This function is used to abstract a call to the Noir Vote Verifier contract

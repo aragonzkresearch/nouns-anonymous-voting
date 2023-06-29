@@ -13,3 +13,6 @@ tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
 clap = { version = "4.3.3", features = ["derive", "cargo", "env"] }
 
 nouns-protocol = { path = "../nouns-protocol", features = ["mock-noir"] }
+
+[dev-dependencies]
+dotenv = "0.15"

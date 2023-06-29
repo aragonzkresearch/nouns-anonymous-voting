@@ -56,8 +56,6 @@ pub(crate) async fn get_nft_ownership_proof(
         .get(0)
         .ok_or("Error getting NFT account state proof")?;
 
-    println!("NFT storage value: {:?}", nft_account_state_proof.value);
-
     Ok((nft_account_state_hash, nft_account_state_proof.clone()))
 }
 
@@ -101,11 +99,6 @@ pub(crate) async fn get_zk_registry_proof(
         .storage_proof
         .get(0) // TODO: we currently only provide storage proof of the X coordinate, however we need to provide both for protocol soundness
         .ok_or("Error getting ZKRegistry state proof")?;
-
-    println!(
-        "zk registry storage value: {:?}",
-        registry_account_state_proof.value
-    );
 
     Ok((
         registry_account_state_hash,
@@ -154,7 +147,7 @@ mod test {
         let eth_connection = Provider::<Http>::connect(ethereum_rpc).await;
 
         let nft_id = U256::from(0);
-        let expected_address =
+        let _expected_address =
             Address::from_str("0x2573C60a6D127755aA2DC85e342F7da2378a0Cc5").unwrap();
 
         let mut offset = 0u64;
