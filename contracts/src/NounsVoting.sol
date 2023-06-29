@@ -10,10 +10,8 @@ contract NounsVoting {
 
 
     struct VotingProcess {
-        /// The storage root of the NounsToken contract selected for voting
-        uint256 nounsTokenStorageRoot;
-        /// The storage root of the ZKRegistry contract selected for voting
-        uint256 zkRegistryStorageRoot;
+        /// The block hash of the start block of the voting process, used to check the storage proofs
+        bytes32 startBlockHash;
         /// The block number from which the storage roots were obtained
         uint256 startBlock;
         /// The block number at which the voting process will end
@@ -52,21 +50,20 @@ contract NounsVoting {
 
     bytes32[] public_args;
 
-
-
     /// The address of the NounsToken contract
     NounsToken public nounsToken;
     /// The address of the ZKRegistry contract
     ZKRegistry public zkRegistry;
     /// The Noir Vote Verifier contract address
-    INoirVerifier voteVerifier;
+    INoirVerifier private voteVerifier;
     /// The Noir Tally Verifier contract address
-    INoirVerifier tallyVerifier;
+    INoirVerifier private tallyVerifier;
     /// The Poseidon Hash contract address
-    Poseidon2 poseidon2;
+    Poseidon2 private poseidon2;
 
     mapping(uint256 => VotingProcess) public votingProcesses;
-    uint256 public voteId = 0;
+    // The id of the next voting process
+    uint256 public nextProcessId = 0;
 
     constructor(
         NounsToken _nounsToken,
@@ -86,16 +83,12 @@ contract NounsVoting {
     }
 
     /// @notice This function is called to generate a new voting process
-    /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
-    /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
     /// @param blockDuration The number of blocks that the voting process will last
     /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We use the BabyJubJub curve for public/private key encryption, represented in Affine coordinates {x, y}. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @dev The storage roots should be for the same block
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract. This will be done in a future version.
     /// @return The id of the voting process
     function createProcess(
-        uint256 nounsTokenStorageRoot,
-        uint256 zkRegistryStorageRoot,
         uint256 blockDuration,
         uint256[2] calldata tlcsPublicKey
     ) public returns (uint256) {
@@ -104,8 +97,6 @@ contract NounsVoting {
         bytes memory emptyBytes = bytes("");
 
         return createProcessWithExecutableAction(
-            nounsTokenStorageRoot,
-            zkRegistryStorageRoot,
             blockDuration,
             tlcsPublicKey,
             address(0),
@@ -115,8 +106,6 @@ contract NounsVoting {
     }
 
     /// @notice This function is called to generate a new voting process with an executable action
-    /// @param nounsTokenStorageRoot The storage root of the NounsToken contract selected for voting
-    /// @param zkRegistryStorageRoot The storage root of the ZKRegistry contract selected for voting
     /// @param blockDuration The number of blocks that the voting process will last
     /// @param tlcsPublicKey The public key of the TLCS service that encrypts the votes to the point in the future. We trust that the voter will cross-check the public key with the one published by the TLCS service.
     /// @param target The target address on which the action will be executed
@@ -126,8 +115,6 @@ contract NounsVoting {
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract
     /// @return The id of the voting process
     function createProcessWithExecutableAction(
-        uint256 nounsTokenStorageRoot,
-        uint256 zkRegistryStorageRoot,
         uint256 blockDuration,
         uint256[2] calldata tlcsPublicKey,
         address target,
@@ -142,9 +129,8 @@ contract NounsVoting {
             args: args
         });
 
-        votingProcesses[voteId] = VotingProcess({
-            nounsTokenStorageRoot: nounsTokenStorageRoot,
-            zkRegistryStorageRoot: zkRegistryStorageRoot,
+        votingProcesses[nextProcessId] = VotingProcess({
+            startBlockHash: blockhash(block.number),
             startBlock: block.number,
             endBlock: block.number + blockDuration,
             tlcsPublicKey: tlcsPublicKey,
@@ -157,9 +143,9 @@ contract NounsVoting {
         });
 
         // Increase the voteId for the next voting process
-        voteId += 1;
+        nextProcessId += 1;
 
-        return voteId - 1;
+        return nextProcessId;
     }
 
     /// @notice This function is called by voter to submit their vote
@@ -192,8 +178,7 @@ contract NounsVoting {
         require(
             _verifyVote(
                 processId,
-                process.nounsTokenStorageRoot,
-                process.zkRegistryStorageRoot,
+                process.startBlockHash,
                 process.tlcsPublicKey,
                 a,
                 b,
@@ -271,12 +256,18 @@ contract NounsVoting {
 
     }
 
+    /// @notice This function returns the block number when the voting process started
+    /// @param processId The id of the voting process
+    /// @return The block number when the voting process started
+    function getStartBlock(uint256 processId) public view returns (uint256) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].startBlock;
+    }
 
     /// @notice This function is used to abstract a call to the Noir Vote Verifier contract
     function _verifyVote(
         uint256 processId,
-        uint256 nounsTokenStorageRoot,
-        uint256 zkRegistryStorageRoot,
+        bytes32 startBlockHash,
         uint256[2] memory tlcsPublicKey,
         uint256[2] memory a,
         uint256 b,
@@ -298,10 +289,7 @@ contract NounsVoting {
         public_args.push(_bytesToBytes32(abi.encode(chainId))); // Part 1 of the `id` value
         public_args.push(_bytesToBytes32(abi.encode(processId))); // Part 2 of the `id` value
         public_args.push(_bytesToBytes32(abi.encode(address(this)))); // Part 3 of the `id` value
-        /// @warning This should be the block hash instead of the storage root
-        public_args.push(_bytesToBytes32(abi.encode(nounsTokenStorageRoot)));
-        /// @warning This should be the block hash instead of the storage root
-        public_args.push(_bytesToBytes32(abi.encode(zkRegistryStorageRoot)));
+        public_args.push(startBlockHash);
         public_args.push(_bytesToBytes32(abi.encode(tlcsPublicKey)));
 
 
@@ -310,13 +298,11 @@ contract NounsVoting {
             public_args
         );
 
-
         // Clear the public args
         delete public_args;
 
         return result;
     }
-
 
     /// @notice This function is used to abstract a call to the Noir Tally Verifier contract
     function _verifyTally(

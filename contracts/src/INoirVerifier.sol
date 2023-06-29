@@ -5,3 +5,9 @@ interface INoirVerifier {
     /// @dev Verifies a Noir proof
     function verify(bytes calldata _proof, bytes32[] calldata _publicInputs) external view returns (bool);
 }
+
+contract YesManNoirVerifier is INoirVerifier {
+    function verify(bytes calldata _proof, bytes32[] calldata _publicInputs) external view override returns (bool) {
+        return true;
+    }
+}
