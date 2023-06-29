@@ -4,7 +4,7 @@ use ethers::types::StorageProof;
 use toml::Value;
 
 use crate::noir::{TallyProverInput, VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
-use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, utils::VoteChoice};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr};
 
 pub trait TomlSerializable {
     fn toml(self) -> Value;
@@ -18,8 +18,14 @@ impl TomlSerializable for TallyProverInput {
         map.insert("contract_addr".to_string(), self.contract_addr.toml());
         map.insert("chain_id".to_string(), self.chain_id.toml());
         map.insert("vote_count".to_string(), self.vote_count.toml());
-        map.insert("k_x".to_string(), self.k.iter().map(|p| {p.x}).collect::<Vec<_>>().toml());
-        map.insert("k_y".to_string(), self.k.iter().map(|p| {p.y}).collect::<Vec<_>>().toml());
+        map.insert(
+            "k_x".to_string(),
+            self.k.iter().map(|p| p.x).collect::<Vec<_>>().toml(),
+        );
+        map.insert(
+            "k_y".to_string(),
+            self.k.iter().map(|p| p.y).collect::<Vec<_>>().toml(),
+        );
         map.insert("v".to_string(), self.v.toml());
         Value::Table(map)
     }

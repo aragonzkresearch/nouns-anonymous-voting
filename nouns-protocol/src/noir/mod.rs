@@ -3,7 +3,7 @@ use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 
 use crate::noir::toml::TomlSerializable;
-use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, utils::VoteChoice};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr};
 
 mod toml;
 
@@ -42,17 +42,17 @@ pub(crate) struct VoteProverInput {
     pub(crate) nft_ownership_proof: StorageProof,
 }
 
-/// Input to Noir tally circuit
+/// The input to the Noir Tally Prover Circuit
 pub(crate) struct TallyProverInput {
-    // Public inputs
+    // Public input for the circuit
     pub(crate) b_k: BN254_Fr,
     pub(crate) process_id: BN254_Fr,
     pub(crate) contract_addr: BN254_Fr,
     pub(crate) chain_id: [BN254_Fr; 2],
-    pub(crate) vote_count: Vec<usize>, // Deduce num_voters from this
+    pub(crate) vote_count: [usize; 3],
     // Private inputs
     pub(crate) k: Vec<BBJJ_Ec>,
-    pub(crate) v: Vec<VoteChoice>
+    pub(crate) v: Vec<VoteChoice>,
 }
 
 /// Generates a proof for a vote
@@ -65,7 +65,10 @@ pub(crate) struct TallyProverInput {
 /// When such a library is available, we can remove the dependency on the filesystem and shell
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     let num_voters = input.k.len();
-    assert!(num_voters <= 256, "Support for more than 256 voters coming soon™");
+    assert!(
+        num_voters <= 256,
+        "Support for more than 256 voters coming soon™"
+    );
     let vote_prover_dir = "circuits/256_voters";
 
     // Serialize the input into a toml string
