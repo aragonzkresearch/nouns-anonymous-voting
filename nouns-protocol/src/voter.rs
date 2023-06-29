@@ -54,6 +54,7 @@ pub(crate) struct BallotHints {
     signed_v: Signature,
     /// `k` representing the blinding factor of the vote
     k: BBJJ_Ec,
+    blinding_factor: BBJJ_Fr
 }
 
 impl Voter {
@@ -65,10 +66,9 @@ impl Voter {
         process_id: U256,
         contract_addr: Address,
         chain_id: U256,
-        tcls_pk: BBJJ_Ec,
+        tlcs_pk: BBJJ_Ec,
         nft_account_state: U256,
         registry_account_state: U256,
-        blinding_factor: BBJJ_Fr,
         storage_proofs: (StorageProof, StorageProof),
         rng: &mut R,
     ) -> Result<(Ballot, Vec<u8>), String> {
@@ -86,7 +86,7 @@ impl Voter {
             process_id,
             contract_addr,
             chain_id,
-            tcls_pk.clone(),
+            tlcs_pk.clone(),
             rng,
         )?;
 
@@ -101,10 +101,10 @@ impl Voter {
             chain_id,
             registry_account_state: Wrapper(registry_account_state).into(),
             nft_account_state: Wrapper(nft_account_state).into(),
-            tcls_pk: tcls_pk.clone(),
+            tlcs_pk: tlcs_pk.clone(),
             // Private inputs
             v,
-            blinding_factor,
+            blinding_factor: ballot_hints.blinding_factor,
             signed_id: ballot_hints.signed_id,
             voter_address: Wrapper(self.eth_addr).into(),
             signed_v: ballot_hints.signed_v,
@@ -188,6 +188,7 @@ impl Voter {
                 signed_id,
                 signed_v,
                 k: k.clone(),
+                blinding_factor
             },
         ));
     }
@@ -219,7 +220,6 @@ mod test {
             BBJJ_Ec::mock(rng),
             U256::mock(rng),
             U256::mock(rng),
-            BBJJ_Fr::mock(rng),
             (StorageProof::mock(rng), StorageProof::mock(rng)),
             rng,
         )?;

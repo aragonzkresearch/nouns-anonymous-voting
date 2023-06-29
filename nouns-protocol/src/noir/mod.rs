@@ -24,7 +24,7 @@ pub(crate) struct VoteProverInput {
     pub(crate) chain_id: [BN254_Fr; 2],
     pub(crate) registry_account_state: [BN254_Fr; 2],
     pub(crate) nft_account_state: [BN254_Fr; 2],
-    pub(crate) tcls_pk: BBJJ_Ec,
+    pub(crate) tlcs_pk: BBJJ_Ec,
 
     // Private input for the circuit
     pub(crate) v: BN254_Fr,
