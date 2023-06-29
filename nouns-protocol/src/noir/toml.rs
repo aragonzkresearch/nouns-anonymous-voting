@@ -13,6 +13,24 @@ pub trait TomlSerializable {
 impl TomlSerializable for TallyProverInput {
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
+
+        // Need to include the number of voters in output
+        let num_voters = self.v.len();
+
+        // Figure out whether num_voters is <= 16, 256, 512, 1024, 2048
+        let padded_len: usize = [16, 256, 512, 1024, 2048]
+            .into_iter()
+            .filter(|x| x >= &num_voters)
+            .next()
+            .expect("Error: There are too many voters.");
+
+        let pad_vec = |v: Vec<BN254_Fr>| {
+            v.into_iter()
+                .chain(std::iter::repeat(BN254_Fr::from(0)).take(padded_len - num_voters))
+                .collect::<Vec<_>>()
+        };
+
+        map.insert("num_voters".to_string(), self.v.len().toml());
         map.insert("b_k".to_string(), self.b_k.toml());
         map.insert("process_id".to_string(), self.process_id.toml());
         map.insert("contract_addr".to_string(), self.contract_addr.toml());
@@ -26,7 +44,20 @@ impl TomlSerializable for TallyProverInput {
             "k_y".to_string(),
             self.k.iter().map(|p| p.y).collect::<Vec<_>>().toml(),
         );
-        map.insert("v".to_string(), self.v.toml());
+        map.insert(
+            "k_y".to_string(),
+            pad_vec(self.k.iter().map(|p| p.y).collect::<Vec<BN254_Fr>>()).toml(),
+        );
+        map.insert(
+            "v".to_string(),
+            pad_vec(
+                self.v
+                    .into_iter()
+                    .map(|v| BN254_Fr::from(v as u8))
+                    .collect::<Vec<_>>(),
+            )
+            .toml(),
+        );
         Value::Table(map)
     }
 }
@@ -49,7 +80,7 @@ impl TomlSerializable for VoteProverInput {
             "nft_account_state".to_string(),
             self.nft_account_state.toml(),
         );
-        map.insert("tcls_pk".to_string(), self.tcls_pk.toml());
+        map.insert("tlcs_pk".to_string(), self.tlcs_pk.toml());
 
         map.insert("v".to_string(), self.v.toml());
         map.insert("blinding_factor".to_string(), self.blinding_factor.toml());
@@ -180,7 +211,12 @@ impl<T: TomlSerializable + Copy> TomlSerializable for Vec<T> {
 impl TomlSerializable for Signature {
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
-        map.insert("r".to_string(), self.r_b8.toml());
+        let mut r_map = toml::map::Map::new();
+
+        r_map.insert("x".to_string(), self.r_b8.x.toml());
+        r_map.insert("y".to_string(), self.r_b8.y.toml());
+
+        map.insert("r_b8".to_string(), Value::Table(r_map));
         map.insert("s".to_string(), self.s.toml());
 
         Value::Table(map)

@@ -1,17 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::EthersU256;
-use crate::PrivateKey;
-use crate::Wrapper;
 use ethers::core::k256::U256;
 use ethers::core::rand;
-use ethers::prelude::{
-    abigen, Address, Http, LocalWallet, Provider, SignerMiddleware, StorageProof,
-};
+use ethers::prelude::{abigen, Address, Http, LocalWallet, Provider, SignerMiddleware};
 
-use nouns_protocol::voter::Voter;
-use nouns_protocol::{wrap, wrap_into, BBJJ_Ec, VoteChoice};
+use nouns_protocol::{wrap, wrap_into, BBJJ_Ec, PrivateKey, VoteChoice, Voter, Wrapper};
+
+use crate::ethereum::storage_proofs::{get_nft_ownership_proof, get_zk_registry_proof};
+use crate::EthersU256;
 
 abigen!(
     ZKRegistry,
@@ -24,8 +21,18 @@ abigen!(
     NounsVoting,
     r#"[
             function zkRegistry() view returns (address)
-            function createProcess(uint256 nounsTokenStorageRoot,uint256 zkRegistryStorageRoot,uint256 blockDuration,uint256[2] calldata tlcsPublicKey) public returns(uint256)  
+            function nounsToken() view returns (address)
+            function nextProcessId() view returns (uint256)
+            function createProcess(uint256 blockDuration,uint256[2] calldata tlcsPublicKey) public returns(uint256)  
             function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,uint256 h_id,bytes calldata proof)
+            function getStartBlock(uint256 processId) public view returns (uint256)
+        ]"#,
+);
+
+abigen!(
+    NounsToken,
+    r#"[
+            function ownerOf(uint256 tokenId) public view virtual returns (address)        
         ]"#,
 );
 
@@ -87,28 +94,25 @@ pub(crate) async fn create_process(
     const ETH_BLOCK_TIME: u64 = 12;
 
     let client = Arc::new(client);
-    let contract = NounsVoting::new(contract_address, client);
-
-    let nouns_token_storage_root = U256::from_u8(0);
-    let zk_registry_storage_root = U256::from_u8(0);
+    let nouns_voting = NounsVoting::new(contract_address, client);
 
     // Get amount of blocks for the process duration, rounded up
     let process_duration = EthersU256::from(process_duration.as_secs() / ETH_BLOCK_TIME + 1);
 
-    let create_process_request = contract.create_process(
-        wrap_into!(nouns_token_storage_root),
-        wrap_into!(zk_registry_storage_root),
-        process_duration,
-        wrap_into!(wrap_into!(tlcs_pbk)),
-    );
+    let create_process_request =
+        nouns_voting.create_process(process_duration, wrap_into!(wrap_into!(tlcs_pbk)));
 
     let tx = create_process_request
         .send()
         .await
         .map_err(|_e| format!("Error sending createProcess tx"))?;
 
+    let process_id = nouns_voting.next_process_id().call().await.map_err(|e| {
+        format!("Error getting the next process id from the NounsVoting contract: {e:?}")
+    })? - 1;
+
     println!("Tx Hash: {}", tx.tx_hash());
-    println!("Process created successfully!");
+    println!("Process created successfully with id: {}.", process_id);
 
     Ok(())
 }
@@ -116,38 +120,90 @@ pub(crate) async fn create_process(
 /// Function that votes in an existing voting process in the NounsVoting contract.
 pub(crate) async fn vote(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
-    contract_address: Address,
+    eth_connection: Provider<Http>,
+    nouns_voting_address: Address,
     process_id: U256,
     nft_id: U256,
     chain_id: U256,
-    nft_owner: Address,
     bbjj_private_key: PrivateKey,
     vote_choice: VoteChoice,
     tlcs_pbk: BBJJ_Ec,
 ) -> Result<(), String> {
     let client = Arc::new(client);
-    let contract = NounsVoting::new(contract_address, client);
+    let nouns_voting = NounsVoting::new(nouns_voting_address, client.clone());
 
-    let voter = Voter::new(nft_owner, bbjj_private_key);
+    let nouns_token_address = nouns_voting.nouns_token().call().await.map_err(|e| {
+        format!("Error getting the NounsToken address from the NounsVoting contract: {e:?}")
+    })?;
 
-    let nft_account_state_hash = U256::from_u8(0); // TODO - get real value
-    let registry_account_state_hash = U256::from_u8(0); // TODO - get real value
-    let registry_account_state_proof = StorageProof::default(); // TODO - get real value
-    let nft_account_state_proof = StorageProof::default(); // TODO - get real value
+    let nouns_token = NounsToken::new(nouns_token_address, client.clone());
+    let nft_owner = nouns_token
+        .owner_of(wrap_into!(nft_id))
+        .call()
+        .await
+        .map_err(|e| {
+            format!("Error getting the NounsTokenID from the Nouns Token contract: {e:?}")
+        })?;
+
+    let start_block_number = nouns_voting
+        .get_start_block(wrap_into!(process_id))
+        .call()
+        .await
+        .map_err(|_| format!("Error getting start block number"))?;
+
+    let zk_registry_address = nouns_voting.zk_registry().call().await.map_err(|e| {
+        format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
+    })?;
+
+    let (registry_account_state_hash, registry_account_state_proof_x) = get_zk_registry_proof(
+        &eth_connection,
+        nft_owner,
+        start_block_number,
+        zk_registry_address,
+    )
+    .await?;
+
+    // Check that the storage proof is correct
+    let expected_value: [U256; 2] = wrap_into!(bbjj_private_key.public());
+    if registry_account_state_proof_x.value != wrap_into!(expected_value[0]) {
+        return Err(format!(
+            "Error: The BBJJ Public Key X value in the storage proof is not the expected one."
+        ));
+    }
+
+    let (nft_account_state_hash, nft_account_state_proof) = get_nft_ownership_proof(
+        eth_connection,
+        wrap_into!(nft_id),
+        start_block_number,
+        nouns_token_address,
+    )
+    .await?;
+
+    // Check that the storage proof is correct
+    if nft_account_state_proof.value != EthersU256::from_big_endian(&nft_owner.as_bytes()) {
+        return Err(format!(
+            "Error: The NFT id in the storage proof is not the expected one."
+        ));
+    }
 
     let rng = &mut rand::thread_rng();
+
+    let voter = Voter::new(nft_owner, bbjj_private_key);
 
     let (ballot, proof) = voter
         .gen_vote(
             nft_id,
             vote_choice,
             process_id,
-            contract_address,
+            nouns_voting_address,
             chain_id,
             tlcs_pbk,
-            nft_account_state_hash,
-            registry_account_state_hash,
-            (nft_account_state_proof, registry_account_state_proof),
+            wrap_into!(nft_account_state_hash),
+            wrap_into!(registry_account_state_hash),
+            (
+                nft_account_state_proof.clone(),
+                registry_account_state_proof_x.clone(),
+            ),
             rng,
         )
         .map_err(|e| format!("Error generating vote proof: {}", e))?;
@@ -157,7 +213,7 @@ pub(crate) async fn vote(
     let n = wrap_into!(ballot.n);
     let h_id = wrap_into!(ballot.h_id);
 
-    let submit_vote_request = contract.submit_vote(
+    let submit_vote_request = nouns_voting.submit_vote(
         wrap_into!(process_id),
         wrap_into!(a),
         wrap_into!(b),

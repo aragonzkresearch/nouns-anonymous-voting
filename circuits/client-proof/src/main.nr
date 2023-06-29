@@ -29,7 +29,7 @@ struct VoteProverInput<MAX_PROOF_SIZE>
     contract_addr: Field,
     chain_id: [Field; 2],
     registry_account_state: [Field; 2], // Storage hash of zkRegistry contract
-    account_state: [Field; 2], // Storage hash of NFT contract
+    nft_account_state: [Field; 2], // Storage hash of NFT contract
     tlcs_pk: Point,
         
     // Private inputs
@@ -55,7 +55,7 @@ fn main(
     contract_addr: pub Field,
     chain_id: pub [Field; 2],
     registry_account_state: pub [Field; 2], // Storage hash of zkRegistry contract
-    account_state: pub [Field; 2], // Storage hash of NFT contract
+    nft_account_state: pub [Field; 2], // Storage hash of NFT contract
     tlcs_pk: pub [Field; 2],
         
     // Private inputs
@@ -80,7 +80,7 @@ fn main(
         contract_addr,
         chain_id,
         registry_account_state,
-        account_state,
+        nft_account_state,
         tlcs_pk: Point::new(tlcs_pk[0], tlcs_pk[1]),
         v,
         blinding_factor,
@@ -118,8 +118,8 @@ fn verify_vote<MAX_PROOF_SIZE>(vote: VoteProverInput<MAX_PROOF_SIZE>)
     assert(vote.b == bn254::hash_7([vote.k.x, vote.k.y, vote.v, vote.chain_id[0], vote.chain_id[1], vote.process_id, vote.contract_addr]));
     assert((vote.v == 0) | (vote.v == 1) | (vote.v == 2)); // Check validity of vote
 
-    assert(verify_storage_proof(u256_conv(vote.registry_account_state), vote.registry_key_sp));
-    assert(verify_storage_proof(u256_conv(vote.account_state), vote.nft_ownership_proof));
+   assert(verify_storage_proof(u256_conv(vote.registry_account_state), vote.registry_key_sp));
+   assert(verify_storage_proof(u256_conv(vote.nft_account_state), vote.nft_ownership_proof));
 }
 
 fn u256_conv(x: [Field; 2]) -> [u8; 32] // Convert a pair of 128-bit field elements to a 32-byte array
