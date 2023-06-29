@@ -98,6 +98,18 @@ impl From<Wrapper<BBJJ_Ec>> for [U256; 2] {
     }
 }
 
+impl From<Wrapper<[U256; 2]>> for BBJJ_Ec {
+    fn from(value: Wrapper<[U256; 2]>) -> Self {
+        let bbjj_pbk_x = wrap_into!(value.0[0]);
+        let bbjj_pbk_y = wrap_into!(value.0[0]);
+
+        BBJJ_Ec {
+            x: bbjj_pbk_x,
+            y: bbjj_pbk_y,
+        }
+    }
+}
+
 impl<const N: usize> From<Wrapper<[U256; N]>> for [EthersU256; N] {
     fn from(value: Wrapper<[U256; N]>) -> Self {
         let mut ethers_u256_array = [EthersU256::zero(); N];

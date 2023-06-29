@@ -1,7 +1,6 @@
 use ethers::abi::Address;
 use ethers::prelude::{
-    BigEndianHash, BlockId, EIP1186ProofResponse, Http, Middleware, Provider, StorageProof, H256,
-    U256,
+    BigEndianHash, BlockId, Http, Middleware, Provider, StorageProof, H256, U64,
 };
 use ethers::utils::keccak256;
 
@@ -31,7 +30,7 @@ fn map_storage_slot(slot_number: H256, map_keys: Vec<H256>) -> H256 {
 pub(crate) async fn get_nft_ownership_proof(
     eth_connection: Provider<Http>,
     nft_id: EthersU256,
-    start_block_number: EthersU256,
+    start_block_number: U64,
     nouns_token_address: Address,
 ) -> Result<(EthersU256, StorageProof), String> {
     let nft_account_proof = eth_connection
@@ -47,7 +46,7 @@ pub(crate) async fn get_nft_ownership_proof(
         .map_err(|e| format!("Error getting NFT account proof: {}", e))?;
 
     // Validate the proof
-    if let Some(err) = validate_storage_proof(&nft_account_proof.storage_proof[0]) {
+    if let Err(err) = validate_storage_proof(&nft_account_proof.storage_proof[0]) {
         return Err(format!("Invalid NFT Account proof: {}", err));
     }
 
@@ -65,7 +64,7 @@ pub(crate) async fn get_nft_ownership_proof(
 pub(crate) async fn get_zk_registry_proof(
     eth_connection: &Provider<Http>,
     nft_owner: Address,
-    start_block_number: EthersU256,
+    start_block_number: U64,
     zk_registry_address: Address,
 ) -> Result<(EthersU256, StorageProof), String> {
     let zk_registry_proof = eth_connection
@@ -93,7 +92,7 @@ pub(crate) async fn get_zk_registry_proof(
         .map_err(|_| format!("Error getting ZKRegistry proof"))?;
 
     // Validate the proof
-    if let Some(err) = validate_storage_proof(&zk_registry_proof.storage_proof[0]) {
+    if let Err(err) = validate_storage_proof(&zk_registry_proof.storage_proof[0]) {
         return Err(format!("Invalid ZKRegistry proof: {}", err));
     }
 
@@ -117,23 +116,20 @@ pub(crate) async fn get_zk_registry_proof(
 /// This function validates the storage proof returned by the Ethereum node
 /// It checks that the proof is not too long and that the nodes are not too long for the circuit
 /// It returns an error if the proof is invalid
-fn validate_storage_proof(proof: &StorageProof) -> Option<Err(String)> {
+fn validate_storage_proof(proof: &StorageProof) -> Result<Option<()>, String> {
     // Check that the length of the proof is not too long
-    if proof.len() > MAX_DEPTH {
-        return Some(Err(format!(
-            "Proof is too long: {}",
-            storage_proof.storage_proof[0].proof.len()
-        )));
+    if proof.proof.len() > MAX_DEPTH {
+        return Err(format!("Proof is too long: {}", proof.proof.len()));
     }
 
     // Make sure path is valid
-    for node in proof.storage_proof[0].proof.iter() {
+    for node in proof.proof.iter() {
         if node.len() > MAX_NODE_LEN {
-            return Some(Err(format!("Invalid node!")));
+            return Err(format!("Invalid node!"));
         }
     }
 
-    None
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -143,12 +139,11 @@ mod test {
 
     use ethers::abi::AbiEncode;
     use ethers::prelude::{
-        Address, BigEndianHash, BlockId, Http, Middleware, Provider, ProviderExt, SignerMiddleware,
-        H256, U256,
+        Address, BigEndianHash, BlockId, Http, Middleware, Provider, ProviderExt, H256, U256,
     };
 
     use crate::ethereum::contract_interactions::NounsToken;
-    use crate::ethereum::storage_proofs::{get_nft_ownership_proof, map_storage_slot};
+    use crate::ethereum::storage_proofs::map_storage_slot;
 
     #[tokio::test]
     async fn test_nft_ownership_proof() -> Result<(), String> {

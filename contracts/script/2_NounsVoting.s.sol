@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 
 import "nouns/NounsToken.sol";
+import "nouns/Inflator.sol";
+import "nouns/NounsArt.sol";
+import "nouns/SVGRenderer.sol";
 import "nouns/NounsDescriptor.sol";
 import "nouns/NounsSeeder.sol";
 
@@ -11,6 +14,7 @@ import "../src/ZKRegistry.sol";
 import "../src/INoirVerifier.sol";
 import "../src/Poseidon.sol";
 import "../src/NounsVoting.sol";
+import "nouns-monorepo/packages/nouns-contracts/contracts/NounsDescriptorV2.sol";
 
 
 contract NounsVotingDeployScript is Script {
@@ -24,7 +28,15 @@ contract NounsVotingDeployScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // Prepare for Descriptor deployment
         NounsDescriptor nounsDescriptor = new NounsDescriptor();
+        nounsDescriptor.addBackground("some_background");
+        bytes memory body = new bytes(1);
+        nounsDescriptor.addBody(body);
+        nounsDescriptor.addAccessory(body);
+        nounsDescriptor.addHead(body);
+        nounsDescriptor.addGlasses(body);
+        nounsDescriptor.lockParts();
 
         NounsSeeder nounsSeeder = new NounsSeeder();
         // Set 0x0 address as proxy address, since we don't need it for our purposes

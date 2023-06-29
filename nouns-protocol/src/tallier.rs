@@ -1,4 +1,5 @@
 use ark_std::iterable::Iterable;
+use babyjubjub_ark::PrivateKey;
 use ethers::{core::k256::U256, prelude::Address};
 use poseidon_ark::Poseidon;
 use strum::IntoEnumIterator;
@@ -8,7 +9,7 @@ use crate::{noir, utils::VoteChoice, wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr
 
 /// Results of the tally to be fed to the tally verification circuit.
 pub struct Tally {
-    pub(crate) vote_count: [usize; 3],
+    pub vote_count: [usize; 3],
 }
 
 /// Represents a tallying authority
@@ -19,8 +20,8 @@ pub struct Tallier;
 /// Contains key information to decrypt the vote
 #[derive(Clone, Debug)]
 pub struct TruncatedBallot {
-    pub(crate) a: BBJJ_Ec,
-    pub(crate) b: BN254_Fr,
+    pub a: BBJJ_Ec,
+    pub b: BN254_Fr,
 }
 
 impl Tallier {
@@ -31,9 +32,9 @@ impl Tallier {
     /// @param chain_id: The chain id of the blockchain
     /// @param process_id: The process id of the process
     /// @param contract_addr: The address of the contract
-    fn tally(
+    pub fn tally(
         ballots: Vec<TruncatedBallot>,
-        tlcs_prk: BBJJ_Fr,
+        tlcs_prk: PrivateKey,
         ballot_hash: BN254_Fr,
         chain_id: U256,
         process_id: U256,
@@ -43,8 +44,13 @@ impl Tallier {
         let contract_addr: BN254_Fr = wrap_into!(contract_addr);
         let chain_id: [BN254_Fr; 2] = wrap_into!(chain_id);
 
-        let (vote_choices, tally) =
-            Self::gen_tally_with_hints(&ballots, &tlcs_prk, process_id, contract_addr, chain_id)?;
+        let (vote_choices, tally) = Self::gen_tally_with_hints(
+            &ballots,
+            &tlcs_prk.scalar_key(),
+            process_id,
+            contract_addr,
+            chain_id,
+        )?;
 
         // Generate a proof
         let noir_input = TallyProverInput {
@@ -57,7 +63,7 @@ impl Tallier {
             // Private inputs
             k: ballots
                 .iter()
-                .map(|ballot| ballot.a.mul_scalar(&tlcs_prk))
+                .map(|ballot| ballot.a.mul_scalar(&tlcs_prk.scalar_key()))
                 .collect(),
             v: vote_choices,
         };
@@ -143,6 +149,7 @@ impl Tallier {
 
 #[cfg(test)]
 mod test {
+    use babyjubjub_ark::PrivateKey;
     use ethers::core::k256::U256;
     use ethers::prelude::Address;
     use rand::Rng;
@@ -171,7 +178,7 @@ mod test {
                     b: BN254_Fr::mock(rng),
                 },
             ],
-            BBJJ_Fr::mock(rng),
+            PrivateKey::mock(rng),
             BN254_Fr::mock(rng),
             U256::mock(rng),
             U256::from(rng.gen_range(0..100u8)),

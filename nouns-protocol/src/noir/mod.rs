@@ -114,6 +114,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     Ok(proof)
 }
 
+#[cfg(not(feature = "mock-noir"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     let num_voters = input.k.len();
     assert!(
@@ -167,9 +168,15 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     Ok(proof)
 }
 
-
 #[cfg(feature = "mock-noir")]
 pub(crate) fn prove_vote(_input: VoteProverInput) -> Result<Vec<u8>, String> {
+    let dummy_proof = vec![0; 100];
+
+    Ok(dummy_proof)
+}
+
+#[cfg(feature = "mock-noir")]
+pub(crate) fn prove_tally(_input: TallyProverInput) -> Result<Vec<u8>, String> {
     let dummy_proof = vec![0; 100];
 
     Ok(dummy_proof)
