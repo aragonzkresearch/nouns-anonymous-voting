@@ -1,8 +1,12 @@
 use ethers::abi::Address;
-use ethers::prelude::{BigEndianHash, BlockId, Http, Middleware, Provider, StorageProof, H256};
+use ethers::prelude::{
+    BigEndianHash, BlockId, EIP1186ProofResponse, Http, Middleware, Provider, StorageProof, H256,
+    U256,
+};
 use ethers::utils::keccak256;
 
 use nouns_protocol::noir::MAX_DEPTH;
+use nouns_protocol::MAX_NODE_LEN;
 
 use crate::EthersU256;
 
@@ -42,12 +46,9 @@ pub(crate) async fn get_nft_ownership_proof(
         .await
         .map_err(|e| format!("Error getting NFT account proof: {}", e))?;
 
-    // Check that the length of the proof is not too long
-    if nft_account_proof.storage_proof[0].proof.len() > MAX_DEPTH {
-        return Err(format!(
-            "NFT account proof is too long: {}",
-            nft_account_proof.storage_proof[0].proof.len()
-        ));
+    // Validate the proof
+    if let Some(err) = validate_storage_proof(&nft_account_proof.storage_proof[0]) {
+        return Err(format!("Invalid NFT Account proof: {}", err));
     }
 
     let nft_account_state_hash = nft_account_proof.storage_hash.into_uint();
@@ -91,12 +92,9 @@ pub(crate) async fn get_zk_registry_proof(
         .await
         .map_err(|_| format!("Error getting ZKRegistry proof"))?;
 
-    // Check that the length of the proof is not too long
-    if zk_registry_proof.storage_proof[0].proof.len() > MAX_DEPTH {
-        return Err(format!(
-            "ZKRegistry proof is too long: {}",
-            zk_registry_proof.storage_proof[0].proof.len()
-        ));
+    // Validate the proof
+    if let Some(err) = validate_storage_proof(&zk_registry_proof.storage_proof[0]) {
+        return Err(format!("Invalid ZKRegistry proof: {}", err));
     }
 
     let registry_account_state_hash = zk_registry_proof.storage_hash.into_uint();
@@ -114,6 +112,28 @@ pub(crate) async fn get_zk_registry_proof(
         registry_account_state_hash,
         registry_account_state_proof.clone(),
     ))
+}
+
+/// This function validates the storage proof returned by the Ethereum node
+/// It checks that the proof is not too long and that the nodes are not too long for the circuit
+/// It returns an error if the proof is invalid
+fn validate_storage_proof(proof: &StorageProof) -> Option<Err(String)> {
+    // Check that the length of the proof is not too long
+    if proof.len() > MAX_DEPTH {
+        return Some(Err(format!(
+            "Proof is too long: {}",
+            storage_proof.storage_proof[0].proof.len()
+        )));
+    }
+
+    // Make sure path is valid
+    for node in proof.storage_proof[0].proof.iter() {
+        if node.len() > MAX_NODE_LEN {
+            return Some(Err(format!("Invalid node!")));
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]

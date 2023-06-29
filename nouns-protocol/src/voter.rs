@@ -54,7 +54,7 @@ pub(crate) struct BallotHints {
     signed_v: Signature,
     /// `k` representing the blinding factor of the vote
     k: BBJJ_Ec,
-    blinding_factor: BBJJ_Fr
+    blinding_factor: BBJJ_Fr,
 }
 
 impl Voter {
@@ -188,7 +188,7 @@ impl Voter {
                 signed_id,
                 signed_v,
                 k: k.clone(),
-                blinding_factor
+                blinding_factor,
             },
         ));
     }
@@ -203,7 +203,7 @@ mod test {
     use crate::utils::mock::Mock;
     use crate::utils::VoteChoice;
     use crate::voter::Voter;
-    use crate::{BBJJ_Ec, BBJJ_Fr};
+    use crate::BBJJ_Ec;
 
     #[test]
     fn test_vote_gen() -> Result<(), String> {

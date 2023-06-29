@@ -103,21 +103,6 @@ impl TomlSerializable for StorageProof {
     fn toml(self) -> Value {
         let mut map = toml::map::Map::new();
         let depth = self.proof.len();
-        ////////
-        // TODO: Move these checks
-        // Make sure MAX_DEPTH has not been exceeded
-        assert!(
-            depth <= MAX_DEPTH,
-            "The maximum possible proof depth ({}) has been exceeded!",
-            MAX_DEPTH
-        );
-        map.insert("depth".to_string(), depth.toml());
-
-        // Make sure path is valid
-        self.proof.iter().for_each(|node| {
-            assert!(node.len() <= MAX_NODE_LEN, "Invalid node!");
-        });
-        ////////
 
         let path = self
             .proof
