@@ -1,10 +1,6 @@
-#[cfg(not(feature = "mock-noir"))]
-use ::toml::to_string_pretty;
 use babyjubjub_ark::Signature;
 use ethers::types::StorageProof;
 
-#[cfg(not(feature = "mock-noir"))]
-use crate::noir::toml::TomlSerializable;
 use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr};
 
 mod toml;
@@ -70,7 +66,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     let vote_prover_dir = "circuits/client-proof";
 
     // Serialize the input into a toml string
-    let prover_input = input.toml();
+    let prover_input = self::toml::TomlSerializable::toml(input);
 
     let prover_input = prover_input
         .as_table()
@@ -78,7 +74,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
             Ok(t)
         })?;
 
-    let prover_input_as_string = to_string_pretty(&prover_input)
+    let prover_input_as_string = ::toml::to_string_pretty(&prover_input)
         .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
 
     // Save the input to a file for the prover to read
@@ -114,16 +110,23 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     Ok(proof)
 }
 
+#[cfg(not(feature = "mock-noir"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     let num_voters = input.k.len();
     assert!(
         num_voters <= 256,
         "Support for more than 256 voters coming soon™"
     );
-    let vote_prover_dir = "circuits/256_voters";
+
+    let nearest_power_of_two = [16, 256]
+            .into_iter()
+            .filter(|x| x >= &num_voters)
+            .next().unwrap();
+    
+    let vote_prover_dir = format!("circuits/{}_voters", nearest_power_of_two);
 
     // Serialize the input into a toml string
-    let prover_input = input.toml();
+    let prover_input = self::toml::TomlSerializable::toml(input);
 
     let prover_input = prover_input
         .as_table()
@@ -131,7 +134,7 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
             Ok(t)
         })?;
 
-    let prover_input_as_string = to_string_pretty(&prover_input)
+    let prover_input_as_string = ::toml::to_string_pretty(&prover_input)
         .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
 
     // Save the input to a file for the prover to read
@@ -146,7 +149,7 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
 
     // Run the prover as a shell command `noir prove` in a `noir` subdirectory
     let output = std::process::Command::new("nargo")
-        .current_dir(vote_prover_dir)
+        .current_dir(vote_prover_dir.clone())
         .arg("prove")
         .arg("p")
         .output()
@@ -170,6 +173,13 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
 
 #[cfg(feature = "mock-noir")]
 pub(crate) fn prove_vote(_input: VoteProverInput) -> Result<Vec<u8>, String> {
+    let dummy_proof = vec![0; 100];
+
+    Ok(dummy_proof)
+}
+
+#[cfg(feature = "mock-noir")]
+pub(crate) fn prove_tally(_input: TallyProverInput) -> Result<Vec<u8>, String> {
     let dummy_proof = vec![0; 100];
 
     Ok(dummy_proof)

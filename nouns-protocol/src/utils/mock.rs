@@ -14,6 +14,14 @@ pub trait Mock {
     fn mock<R: Rng>(rng: &mut R) -> Self;
 }
 
+impl Mock for PrivateKey {
+    fn mock<R: Rng>(rng: &mut R) -> Self {
+        let mut RK_i = vec![0u8; 32];
+        rng.fill_bytes(&mut RK_i);
+        PrivateKey::import(RK_i).expect("Could not generate a mock BBJJ Private Key.")
+    }
+}
+
 impl Mock for Voter {
     fn mock<R: Rng>(rng: &mut R) -> Self {
         // Generate a random Vec of bytes length 32

@@ -38,15 +38,11 @@ impl TomlSerializable for TallyProverInput {
         map.insert("vote_count".to_string(), self.vote_count.toml());
         map.insert(
             "k_x".to_string(),
-            self.k.iter().map(|p| p.x).collect::<Vec<_>>().toml(),
+            pad_vec(self.k.iter().map(|p| p.x).collect::<Vec<_>>()).toml(),
         );
         map.insert(
             "k_y".to_string(),
-            self.k.iter().map(|p| p.y).collect::<Vec<_>>().toml(),
-        );
-        map.insert(
-            "k_y".to_string(),
-            pad_vec(self.k.iter().map(|p| p.y).collect::<Vec<BN254_Fr>>()).toml(),
+            pad_vec(self.k.iter().map(|p| p.y).collect::<Vec<_>>()).toml(),
         );
         map.insert(
             "v".to_string(),
