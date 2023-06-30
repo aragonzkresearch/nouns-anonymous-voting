@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 use crate::noir::TallyProverInput;
 use crate::{noir, utils::VoteChoice, wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, Wrapper};
 
-/// Results of the tally to be fed to the tally verification circuit.
+/// Results of the tally
 pub struct Tally {
     pub vote_count: [usize; 3],
 }
@@ -149,15 +149,79 @@ impl Tallier {
 
 #[cfg(test)]
 mod test {
-    use babyjubjub_ark::PrivateKey;
+    use ark_ff::PrimeField;
     use ethers::core::k256::U256;
     use ethers::prelude::Address;
+    use poseidon_ark::Poseidon;
     use rand::Rng;
 
-    use crate::tallier::{Tallier, TruncatedBallot};
-    use crate::utils::mock::Mock;
-    use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+    use crate::tallier::{Tallier, Tally, TruncatedBallot};
+    use crate::utils::{mock::Mock, VoteChoice, wrapper::Wrapper};
+    use crate::voter::Voter;
+    use crate::{BBJJ_Ec, BBJJ_Fr, BBJJ_G1, BN254_Fr, PrivateKey};
 
+    fn gen_tally<R: Rng>(rng: &mut R, num_voters: usize) -> Result<(Tally, Vec<u8>), String> {
+        let poseidon = Poseidon::new();
+
+        let nft_id = (0..num_voters).map(|_| { U256::mock(rng) }).collect::<Vec<_>>();
+        let process_id = U256::from(rng.gen_range(0..100u8));
+        let contract_addr = Address::mock(rng);
+        let chain_id = U256::mock(rng);
+        let tlcs_prk = BBJJ_Fr::from_be_bytes_mod_order(&PrivateKey::mock(rng).key);
+        let tlcs_pk = BBJJ_G1.mul_scalar(&tlcs_prk);
+
+        let voter = (0..num_voters)
+            .map(|_| {
+                Voter::mock(rng)
+            })
+            .collect::<Vec<Voter>>();
+        
+        let v = (0..num_voters)
+            .map(|_| { VoteChoice::mock(rng) }).collect::<Vec<_>>();
+        
+        let ballot = std::iter::zip(voter,std::iter::zip(nft_id, v))
+            .map(|(voter, (nft_id, v))| {
+                voter.gen_ballot_with_hints(
+                    Wrapper(nft_id).into(),
+                    (v as u32).into(),
+                    Wrapper(process_id).into(),
+                    Wrapper(contract_addr).into(),
+                    Wrapper(chain_id).into(),
+                    tlcs_pk.clone(),
+                    rng,
+                ).unwrap().0
+            }).collect::<Vec<_>>();
+        
+        let truncated_ballot = ballot
+            .iter()
+            .map(|ballot| TruncatedBallot {a: ballot.a.clone(), b: ballot.b.clone() })
+            .collect::<Vec<_>>();
+        
+        
+        let b_k = truncated_ballot
+            .clone()
+            .into_iter()
+            .map(|tb| {tb.b})
+            .reduce(|acc, x| {
+                poseidon
+                    .hash(vec![x, acc])
+                    .expect("Error computing Poseidon hash!")
+            })
+            .unwrap();
+
+        Tallier::tally(truncated_ballot, tlcs_prk, b_k, chain_id, process_id, contract_addr)
+            
+//        Tallier::new(a, b, tlcs_sk, b_k)
+    }
+
+    #[test]
+    fn test10()
+    {
+        let rng = &mut ark_std::test_rng();
+
+        gen_tally(rng, 10).expect("!?");
+    }
+    
     #[test]
     fn test_tally_gen() -> Result<(), String> {
         let rng = &mut ark_std::test_rng();
