@@ -63,7 +63,7 @@ pub(crate) struct TallyProverInput {
 /// When such a library is available, we can remove the dependency on the filesystem and shell
 #[cfg(not(feature = "mock-noir"))]
 pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
-    let vote_prover_dir = "circuits/client-proof";
+    let vote_prover_dir = "../circuits/client-proof";
 
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
@@ -119,11 +119,12 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     );
 
     let nearest_power_of_two = [16, 256]
-            .into_iter()
-            .filter(|x| x >= &num_voters)
-            .next().unwrap();
-    
-    let vote_prover_dir = format!("circuits/{}_voters", nearest_power_of_two);
+        .into_iter()
+        .filter(|x| x >= &num_voters)
+        .next()
+        .unwrap();
+
+    let vote_prover_dir = format!("../circuits/{}_voters", nearest_power_of_two);
 
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
