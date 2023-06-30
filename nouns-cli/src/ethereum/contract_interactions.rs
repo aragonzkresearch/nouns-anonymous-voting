@@ -4,12 +4,13 @@ use std::time::Duration;
 use ethers::core::k256::U256;
 use ethers::core::rand;
 use ethers::prelude::{
-    abigen, Address, BigEndianHash, Http, LocalWallet, Middleware, Provider, SignerMiddleware, H256,
+    abigen, Address, BigEndianHash, Http, LocalWallet, Middleware, Provider, SignerMiddleware,
 };
 use ethers::types::U64;
 
 use nouns_protocol::{
-    wrap, wrap_into, BBJJ_Ec, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter, Wrapper,
+    wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
+    Wrapper,
 };
 
 use crate::ethereum::storage_proofs::{get_nft_ownership_proof, get_zk_registry_proof};
@@ -250,10 +251,9 @@ pub(crate) async fn tally(
     nouns_voting_address: Address,
     chain_id: U256,
     process_id: U256,
-    tlcs_prk: PrivateKey,
+    tlcs_prk: BBJJ_Fr,
 ) -> Result<(), String> {
     let client = Arc::new(client);
-
     let nouns_voting = NounsVoting::new(nouns_voting_address, client.clone());
 
     // Get all the ballots casted in the voting process
@@ -278,6 +278,14 @@ pub(crate) async fn tally(
 
     let mut ballots: Vec<TruncatedBallot> = Vec::new();
     for log in logs {
+        // Check that the log is of correct form:
+        if log.topics.len() != 4 {
+            return Err(format!(
+                "Error: The log with transaction hash {:?} is not of the correct form.",
+                log.transaction_hash
+            ));
+        }
+
         let a_x: U256 = wrap_into!(log.topics[1].into_uint());
         let a_y: U256 = wrap_into!(log.topics[2].into_uint());
         let b: U256 = wrap_into!(log.topics[3].into_uint());
@@ -321,13 +329,17 @@ pub(crate) async fn tally(
         .map_err(|_| format!("Error sending tally tx"))?;
 
     println!("Tx Hash: {}", tx.tx_hash());
-    println!("Tally submitted successfully!");
+    println!(
+        "Tally submitted successfully! The result is: Against: {}, For: {}, Abstain: {}",
+        tally.vote_count[0], tally.vote_count[1], tally.vote_count[2]
+    );
 
     Ok(())
 }
 
 #[cfg(test)]
 mod test {
+    use std::io;
     use std::ops::{Add, Sub};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -343,10 +355,10 @@ mod test {
     use ethers::providers::Provider;
     use ethers::types::U256;
 
-    use nouns_protocol::{wrap, wrap_into, PrivateKey, VoteChoice, Wrapper};
+    use nouns_protocol::{wrap, wrap_into, BN254_Fr, PrivateKey, VoteChoice, Wrapper};
 
     use crate::ethereum::contract_interactions::{
-        create_process, reg_key, tally, vote, NounsToken, NounsVoting,
+        create_process, reg_key, tally, vote, NounsVoting,
     };
 
     abigen!(
@@ -361,28 +373,9 @@ mod test {
 
     #[tokio::test]
     async fn integration_test_of_contract_interactions() -> Result<(), String> {
-        // Load the variables from the .env file using dotenv
-        dotenv::dotenv().ok();
-
         //// Set the simulation parameters
 
-        // Get from the environment the TX_PRIVATE_KEY value
-        let tx_private_key = std::env::var("TX_PRIVATE_KEY").expect("TX_PRIVATE_KEY not set");
-
-        // Get from the environment the RPC_URL value
-        let rpc_url = std::env::var("RPC_URL").expect("RPC_URL not set");
-
-        // Set the process duration
-        let duration = Duration::from_secs(120); // 1 block confirmation time
-
-        // Get from the environment the VOTING_ADDRESS value
-        let voting_address = Address::from_str(
-            std::env::var("VOTING_ADDRESS")
-                .expect("VOTING_ADDRESS not set")
-                .as_str(),
-        )
-        .expect("Error parsing VOTING_ADDRESS");
-        println!("Voting address: {}", voting_address);
+        let (tx_private_key, rpc_url, voting_address) = setup_env_parameters();
 
         // Get the TLCS key pair
         let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
@@ -394,27 +387,15 @@ mod test {
             PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
         }
 
+        // Set the process duration
+        let duration = Duration::from_secs(120); // 1 block confirmation time
+
         let vote_choice = VoteChoice::Abstain;
 
         //// Configure the System Parameters
 
-        // connect to the EVM
-        let eth_connection = Provider::<Http>::connect(rpc_url.as_str()).await;
-        // create the signer for the txs
-
-        let wallet = LocalWallet::from_str(tx_private_key.as_str()).unwrap();
-        let wallet_address = wallet.address();
-
-        let chain_id = eth_connection
-            .get_chainid()
-            .await
-            .map_err(|_e| "Could not get chain id".to_string())
-            .unwrap();
-
-        let client = SignerMiddleware::new(
-            eth_connection.clone(),
-            wallet.with_chain_id(chain_id.as_u64()),
-        );
+        let (eth_connection, wallet_address, client, chain_id) =
+            setup_connection(tx_private_key, rpc_url).await;
 
         let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
 
@@ -523,31 +504,128 @@ mod test {
             .await
             .expect("Error getting process end block");
 
+        mine_blocks_until(eth_connection, wallet_address, &client, process_end_block).await?;
+
+        println!("Process has ended! Proceeding to tally.",);
+
+        tally(
+            client.clone(),
+            voting_address,
+            wrap_into!(chain_id),
+            wrap_into!(process_id),
+            tlcs_prk.scalar_key(),
+        )
+        .await
+        .map_err(|e| format!("Error tallying: {}", e))?;
+
+        let result = nouns_voting
+            .get_tally_result(process_id)
+            .call()
+            .await
+            .expect("Error getting tally");
+        Ok(result)
+    }
+
+    #[tokio::test]
+    async fn premint_nouns() -> Result<(), String> {
+        //// Set the simulation parameters
+
+        let (tx_private_key, rpc_url, voting_address) = setup_env_parameters();
+
+        //// Configure the System Parameters
+
+        let (_, wallet_address, client, _) = setup_connection(tx_private_key, rpc_url).await;
+
+        let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
+
+        //// Obtain the TokenIds owned by the wallet (possibly minting some)
+
+        let token_ids =
+            obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
+                .await
+                .map_err(|e| format!("Error obtaining token ids: {}", e))?;
+
+        println!("Available TokenIds: {:?}", token_ids);
+
+        Ok(())
+    }
+
+    #[test]
+    fn generate_tlcs_key_pair() {
+        let tlcs_prk = PrivateKey::import(vec![1u8; 32]).unwrap();
+        let tlcs_pubk = tlcs_prk.public();
+
+        let tlcs_pubk_s: [ethers::core::k256::U256; 2] = wrap_into!(tlcs_pubk);
+        let tlcs_prk_s: BN254_Fr = wrap_into!(tlcs_prk.scalar_key());
+        let tlcs_prk_s: ethers::core::k256::U256 = wrap_into!(tlcs_prk_s);
+
+        println!("tlcs_prk: {}", tlcs_prk_s);
+        println!("tlcs_pubk: '{},{}'", tlcs_pubk_s[0], tlcs_pubk_s[1]);
+    }
+
+    #[tokio::test]
+    async fn mine_blocks() {
+        //// Set the simulation parameters
+
+        let (tx_private_key, rpc_url, _) = setup_env_parameters();
+
+        let (eth_connection, wallet_address, client, _) =
+            setup_connection(tx_private_key, rpc_url).await;
+
+        let current_block = eth_connection
+            .get_block_number()
+            .await
+            .expect("Error getting current block number")
+            .as_u64();
+
+        // Ask user how many blocks to mine
+        let mut input = String::new();
+        println!("How many blocks do you want to mine?");
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
+        let blocks_to_mine: u64 = input.trim().parse().expect("Please type a number!");
+
+        mine_blocks_until(
+            eth_connection,
+            wallet_address,
+            &client,
+            current_block + blocks_to_mine,
+        )
+        .await
+        .unwrap();
+    }
+
+    /// This function will try to help mine the blocks until the specified block number
+    /// It will do transactions to increase the block number, only valid for local testing
+    async fn mine_blocks_until(
+        eth_connection: Provider<Http>,
+        wallet_address: Address,
+        client: &SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+        target_block: u64,
+    ) -> Result<(), String> {
         // Get the current block number
         let mut current_block = eth_connection
             .get_block_number()
             .await
             .expect("Error getting current block number");
 
-        if current_block.as_u64() < process_end_block {
+        if current_block.as_u64() < target_block {
             println!(
-                "Process has not yet ended! Going to mine the next {} blocks",
-                process_end_block - current_block.as_u64()
+                "Target block not yet reached! Going to mine the next {} blocks.",
+                target_block - current_block.as_u64()
             );
         }
 
         // Check that the process has ended
-        while current_block.as_u64() < process_end_block {
+        while current_block.as_u64() < target_block {
             // Do transactions to increase the block number
 
-            let tx = TransactionRequest::new()
-                .to(wallet_address)
-                .value(100000)
-                .gas_price(1);
+            let tx = TransactionRequest::pay(wallet_address, 10);
             let sent_tx = client
                 .send_transaction(tx, None)
                 .await
-                .map_err(|_e| format!("Error sending transaction to increase block number",))?;
+                .map_err(|_e| format!("Error sending transaction to increase block number"))?;
             let _receipt = sent_tx.await.map_err(|_e| {
                 format!(
                     "Error waiting for transaction to increase block number: {:?}",
@@ -560,25 +638,8 @@ mod test {
                 .await
                 .expect("Error getting current block number");
         }
-
-        println!("Process has ended! Proceeding to tally.",);
-
-        tally(
-            client.clone(),
-            voting_address,
-            wrap_into!(chain_id),
-            wrap_into!(process_id),
-            tlcs_prk,
-        )
-        .await
-        .map_err(|e| format!("Error tallying: {}", e))?;
-
-        let result = nouns_voting
-            .get_tally_result(process_id)
-            .call()
-            .await
-            .expect("Error getting tally");
-        Ok(result)
+        println!("Target block reached! Mining finished.");
+        Ok(())
     }
 
     async fn obtain_token_ids_to_vote(
@@ -624,5 +685,53 @@ mod test {
         }
 
         Ok(token_ids)
+    }
+
+    async fn setup_connection(
+        tx_private_key: String,
+        rpc_url: String,
+    ) -> (
+        Provider<Http>,
+        Address,
+        SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+        U256,
+    ) {
+        let eth_connection = Provider::<Http>::connect(rpc_url.as_str()).await;
+        // create the signer for the txs
+
+        let wallet = LocalWallet::from_str(tx_private_key.as_str()).unwrap();
+        let wallet_address = wallet.address();
+
+        let chain_id = eth_connection
+            .get_chainid()
+            .await
+            .map_err(|_e| "Could not get chain id".to_string())
+            .unwrap();
+
+        let client = SignerMiddleware::new(
+            eth_connection.clone(),
+            wallet.with_chain_id(chain_id.as_u64()),
+        );
+        (eth_connection, wallet_address, client, chain_id)
+    }
+
+    fn setup_env_parameters() -> (String, String, H160) {
+        // Load the variables from the .env file using dotenv
+        dotenv::dotenv().ok();
+
+        // Get from the environment the TX_PRIVATE_KEY value
+        let tx_private_key = std::env::var("TX_PRIVATE_KEY").expect("TX_PRIVATE_KEY not set");
+
+        // Get from the environment the RPC_URL value
+        let rpc_url = std::env::var("RPC_URL").expect("RPC_URL not set");
+
+        // Get from the environment the VOTING_ADDRESS value
+        let voting_address = Address::from_str(
+            std::env::var("VOTING_ADDRESS")
+                .expect("VOTING_ADDRESS not set")
+                .as_str(),
+        )
+        .expect("Error parsing VOTING_ADDRESS");
+        (tx_private_key, rpc_url, voting_address)
     }
 }

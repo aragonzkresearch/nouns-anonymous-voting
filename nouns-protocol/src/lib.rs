@@ -28,7 +28,7 @@ mod test {
     use rand::Rng;
 
     use crate::utils::mock::Mock;
-    use crate::{wrap, wrap_into, BN254_Fr, Tallier, TruncatedBallot, VoteChoice, Voter, Wrapper};
+    use crate::{BN254_Fr, Tallier, TruncatedBallot, VoteChoice, Voter};
 
     #[test]
     fn integration_test_of_vote_and_tally() -> Result<(), String> {
@@ -45,12 +45,12 @@ mod test {
         let mut ballots = vec![];
         let mut vote_choices = vec![];
 
-        for i in 0..size {
+        for _ in 0..size {
             let voter = Voter::mock(rng);
 
             let vote_choice = VoteChoice::mock(rng);
 
-            let (ballot, proof) = voter.gen_vote(
+            let (ballot, _proof) = voter.gen_vote(
                 U256::from_u64(1),
                 vote_choice,
                 process_id,
@@ -72,9 +72,9 @@ mod test {
             vote_choices.push(vote_choice);
         }
 
-        let (tally, proof) = Tallier::tally(
+        let (tally, _proof) = Tallier::tally(
             ballots,
-            tlcs_prk,
+            tlcs_prk.scalar_key(),
             BN254_Fr::mock(rng),
             chain_id,
             process_id,

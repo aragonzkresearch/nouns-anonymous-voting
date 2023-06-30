@@ -1,6 +1,6 @@
 # nouns-anonymous-voting
 
-# ⛔ DISCLAIMER: This is a work in progress and does not work yet. 💀
+# ⛔ DISCLAIMER: This is a work in progress and does not fully work yet 💀
 
 This repository consists of a library, CLI and smart contracts for the Nouns private voting project.
 
@@ -50,16 +50,20 @@ For that, you need to provide the following information:
 1. The TLCS Public Encryption Key that will be used to encrypt the votes. You should get this from the TLCS server.
 2. The duration of the voting process. This can be provided in minutes, hours and days.
 
+**Note** You will need an account that has at least one Nouns to participate in the voting process. If you are running
+in a local test network, you can mint a Nouns to your account by running `cargo test -- premint_nouns --nocaputre`
+command.
+
 1. To create a process with duration of 1 day:
 
 ```bash
-    cargo run -- create-process -d 1d -t '0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`
+    cargo run -- create-process -d 1d -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
 2. To create a process with duration of 10 hours:
 
 ```bash
-    cargo run -- create-process -d 10h -t '0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`
+    cargo run -- create-process -d 10h -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
 ### Vote
@@ -77,9 +81,24 @@ As part of the vote, you need to provide the following information:
 **Note:** make sure that the NFT indeed exists in the Nouns Token contract.
 
 ```bash
-    cargo run -- vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364' 
+    cargo run -- vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
+### Tally
 
+This function is used to tally the votes in a process.
+
+As part of the tally, you need to provide the following information:
+
+1. The process ID of the process you want to tally.
+2. The TLCS private key that will be used to decrypt the votes. You should get this from the TLCS server.
+
+**Note** That you can only run this command after the voting process has ended. If you are working on a local test net,
+you can mine these blocks by running `cargo test -- mine_blocks --nocapture` command. Note that 1 block is counted as 12
+seconds.
+
+```bash
+    cargo run -- tally -p 0 -t 059D6B0FE7AD950D220261FE28B7C8B514E3B06D8EBC17179C469120A366B8C9
+```
 
 

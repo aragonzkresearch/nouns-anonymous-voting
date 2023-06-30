@@ -1,5 +1,4 @@
 use ark_std::iterable::Iterable;
-use babyjubjub_ark::PrivateKey;
 use ethers::{core::k256::U256, prelude::Address};
 use poseidon_ark::Poseidon;
 use strum::IntoEnumIterator;
@@ -34,7 +33,7 @@ impl Tallier {
     /// @param contract_addr: The address of the contract
     pub fn tally(
         ballots: Vec<TruncatedBallot>,
-        tlcs_prk: PrivateKey,
+        tlcs_prk: BBJJ_Fr,
         ballot_hash: BN254_Fr,
         chain_id: U256,
         process_id: U256,
@@ -44,13 +43,8 @@ impl Tallier {
         let contract_addr: BN254_Fr = wrap_into!(contract_addr);
         let chain_id: [BN254_Fr; 2] = wrap_into!(chain_id);
 
-        let (vote_choices, tally) = Self::gen_tally_with_hints(
-            &ballots,
-            &tlcs_prk.scalar_key(),
-            process_id,
-            contract_addr,
-            chain_id,
-        )?;
+        let (vote_choices, tally) =
+            Self::gen_tally_with_hints(&ballots, &tlcs_prk, process_id, contract_addr, chain_id)?;
 
         // Generate a proof
         let noir_input = TallyProverInput {
@@ -63,7 +57,7 @@ impl Tallier {
             // Private inputs
             k: ballots
                 .iter()
-                .map(|ballot| ballot.a.mul_scalar(&tlcs_prk.scalar_key()))
+                .map(|ballot| ballot.a.mul_scalar(&tlcs_prk))
                 .collect(),
             v: vote_choices,
         };
@@ -149,7 +143,6 @@ impl Tallier {
 
 #[cfg(test)]
 mod test {
-    use ark_ff::PrimeField;
     use ethers::core::k256::U256;
     use ethers::prelude::Address;
     use poseidon_ark::Poseidon;
@@ -158,7 +151,7 @@ mod test {
     use crate::tallier::{Tallier, Tally, TruncatedBallot};
     use crate::utils::{mock::Mock, wrapper::Wrapper, VoteChoice};
     use crate::voter::Voter;
-    use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, PrivateKey, BBJJ_G1};
+    use crate::{BBJJ_Ec, BN254_Fr, PrivateKey, BBJJ_G1};
 
     fn gen_tally<R: Rng>(rng: &mut R, num_voters: usize) -> Result<(Tally, Vec<u8>), String> {
         let poseidon = Poseidon::new();
@@ -216,7 +209,7 @@ mod test {
 
         Tallier::tally(
             truncated_ballot,
-            tlcs_prk,
+            tlcs_prk.scalar_key(),
             b_k,
             chain_id,
             process_id,
@@ -253,7 +246,7 @@ mod test {
                     b: BN254_Fr::mock(rng),
                 },
             ],
-            PrivateKey::mock(rng),
+            PrivateKey::mock(rng).scalar_key(),
             BN254_Fr::mock(rng),
             U256::mock(rng),
             U256::from(rng.gen_range(0..100u8)),

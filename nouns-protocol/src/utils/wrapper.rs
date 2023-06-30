@@ -82,11 +82,9 @@ impl From<Wrapper<Address>> for BN254_Fr {
     }
 }
 
-impl From<BBJJ_Fr> for Wrapper<BN254_Fr> {
-    fn from(value: BBJJ_Fr) -> Self {
-        Wrapper(BN254_Fr::from_be_bytes_mod_order(
-            value.into_bigint().to_bytes_be().as_slice(),
-        ))
+impl From<Wrapper<BBJJ_Fr>> for BN254_Fr {
+    fn from(value: Wrapper<BBJJ_Fr>) -> Self {
+        BN254_Fr::from_be_bytes_mod_order(value.0.into_bigint().to_bytes_be().as_slice())
     }
 }
 
@@ -178,5 +176,13 @@ mod test {
 
         assert_eq!(bbjj_ec.x, wrap_into!(U256::from(120u8)));
         assert_eq!(bbjj_ec.y, wrap_into!(U256::from(125u8)));
+    }
+
+    #[test]
+    fn test_bn254_fr_to_string() {
+        let num_fr = BN254_Fr::from(120u8);
+        let num: U256 = wrap_into!(num_fr);
+
+        assert_eq!(num.to_string(), U256::from(120u8).to_string());
     }
 }

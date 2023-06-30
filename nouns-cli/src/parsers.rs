@@ -4,20 +4,20 @@ use std::time::Duration;
 use ethers::core::k256::U256;
 use ethers::utils::hex;
 
-use nouns_protocol::{BBJJ_Ec, BN254_Fr, PrimeField, PrivateKey};
+use nouns_protocol::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, PrimeField};
 
 /// Parses a hex string into BBJJ PrivateKey
 /// Example: `1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef` of 32 bytes
-pub(crate) fn parse_bbjj_prk(private_bbjj_key: &String) -> Result<PrivateKey, String> {
-    let key_to_reg = if private_bbjj_key.starts_with("0x") {
+pub(crate) fn parse_bbjj_prk(private_bbjj_key: &String) -> Result<BBJJ_Fr, String> {
+    let key = if private_bbjj_key.starts_with("0x") {
         private_bbjj_key[2..].to_string()
     } else {
         private_bbjj_key.to_string()
     };
 
-    PrivateKey::import(
-        hex::decode(key_to_reg).map_err(|e| format!("Failed to parse hex string: {}", e))?,
-    )
+    let key = hex::decode(key).map_err(|e| format!("Failed to parse hex string: {}", e))?;
+
+    Ok(BBJJ_Fr::from_be_bytes_mod_order(key.as_slice()))
 }
 
 /// Parses a duration string into a Duration
