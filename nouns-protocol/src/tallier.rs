@@ -167,8 +167,8 @@ mod test {
         let process_id = U256::from(rng.gen_range(0..100u8));
         let contract_addr = Address::mock(rng);
         let chain_id = U256::mock(rng);
-        let tlcs_prk = BBJJ_Fr::from_be_bytes_mod_order(&PrivateKey::mock(rng).key);
-        let tlcs_pk = BBJJ_G1.mul_scalar(&tlcs_prk);
+        let tlcs_prk = PrivateKey::mock(rng);
+        let tlcs_pk = BBJJ_G1.mul_scalar(&tlcs_prk.scalar_key());
 
         let voter = (0..num_voters)
             .map(|_| {
