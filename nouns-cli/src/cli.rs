@@ -12,15 +12,15 @@ use crate::parsers::{
 };
 
 /// The global parameters of the CLI
-pub(crate) struct GlobalCliParams {
-    pub(crate) contract_address: Address,
-    pub(crate) rpc_url: String,
-    pub(crate) tx_private_key: [u8; 32],
+pub struct GlobalCliParams {
+    pub contract_address: Address,
+    pub rpc_url: String,
+    pub tx_private_key: [u8; 32],
 }
 
 /// The CLI commands that the user can choose from
 /// Parameters are passed as arguments and the command is executed
-pub(crate) enum CliCommand {
+pub enum CliCommand {
     RegKey(PrivateKey),
     CreateProcess(Duration, BBJJ_Ec),
     Vote(U256, U256, PrivateKey, VoteChoice, BBJJ_Ec),
@@ -28,7 +28,7 @@ pub(crate) enum CliCommand {
     None, // No command was chosen
 }
 
-pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
+pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
     let command = command_constructor();
     let matches = command.get_matches();
 

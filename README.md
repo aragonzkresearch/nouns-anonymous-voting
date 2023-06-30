@@ -10,7 +10,7 @@ This is a work in progress. Please do not use this in production.
 
 ### Pre-requisites
 
-1. Deploy the [Nouns voting contract]() to a Ethereum network.
+1. Deploy the [Nouns voting contract](contracts/README.md) to an Ethereum network.
 2. Copy the `.env.template` file to `.env` and fill in the values.
 3. Have the Nouns CLI installed or have a source code to build it from.
 
@@ -50,9 +50,9 @@ For that, you need to provide the following information:
 1. The TLCS Public Encryption Key that will be used to encrypt the votes. You should get this from the TLCS server.
 2. The duration of the voting process. This can be provided in minutes, hours and days.
 
-**Note** You will need an account that has at least one Nouns to participate in the voting process. If you are running
-in a local test network, you can mint a Nouns to your account by running `cargo test -- premint_nouns --nocaputre`
-command.
+_**Note** You will need an account that has at least one Nouns to participate in the voting process. If you are running
+in a local test network, you can mint a Nouns to your account by running `cargo run --bin premint_nouns`
+command._
 
 1. To create a process with duration of 1 day:
 
@@ -78,7 +78,7 @@ As part of the vote, you need to provide the following information:
 4. The TLCS Public Encryption Key that will be used to encrypt the vote. You should get this from the TLCS server.
 5. The Vote Option you want to vote for. This can be either `Yes`, `No` or `Abstain`.
 
-**Note:** make sure that the NFT indeed exists in the Nouns Token contract.
+_**Note:** make sure that the NFT indeed exists in the Nouns Token contract._
 
 ```bash
     cargo run -- vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
@@ -94,7 +94,7 @@ As part of the tally, you need to provide the following information:
 2. The TLCS private key that will be used to decrypt the votes. You should get this from the TLCS server.
 
 **Note** That you can only run this command after the voting process has ended. If you are working on a local test net,
-you can mine these blocks by running `cargo test -- mine_blocks --nocapture` command. Note that 1 block is counted as 12
+you can mine these blocks by running `cargo run --bin mine_blocks` command. Note that 1 block is counted as 12
 seconds.
 
 ```bash

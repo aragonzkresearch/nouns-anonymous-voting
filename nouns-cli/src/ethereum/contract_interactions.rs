@@ -1,10 +1,13 @@
+use std::ops::Add;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ethers::core::k256::ecdsa::SigningKey;
 use ethers::core::k256::U256;
 use ethers::core::rand;
 use ethers::prelude::{
     abigen, Address, BigEndianHash, Http, LocalWallet, Middleware, Provider, SignerMiddleware,
+    TransactionRequest, Wallet,
 };
 use ethers::types::U64;
 
@@ -45,11 +48,15 @@ abigen!(
     NounsToken,
     r#"[
             function ownerOf(uint256 tokenId) public view virtual returns (address)      
+            function balanceOf(address owner) public view virtual returns (uint256)
+            function tokenOfOwnerByIndex(address owner, uint256 index) public view virtual returns (uint256)
+            function mint() public returns (uint256)   
+            function minter() public view returns (address)
         ]"#,
 );
 
 /// Function that registers a new BBJJ Public Key in the ZKRegistry contract.
-pub(crate) async fn reg_key(
+pub async fn reg_key(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     nouns_voting_address: Address,
     bbjj_private_key: PrivateKey,
@@ -97,7 +104,7 @@ pub(crate) async fn reg_key(
 }
 
 /// Function that creates a new voting process in the NounsVoting contract.
-pub(crate) async fn create_process(
+pub async fn create_process(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     contract_address: Address,
     process_duration: Duration,
@@ -130,7 +137,7 @@ pub(crate) async fn create_process(
 }
 
 /// Function that votes in an existing voting process in the NounsVoting contract.
-pub(crate) async fn vote(
+pub async fn vote(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     eth_connection: Provider<Http>,
     nouns_voting_address: Address,
@@ -246,7 +253,7 @@ pub(crate) async fn vote(
 }
 
 /// Function to tally the votes in an existing voting process in the NounsVoting contract.
-pub(crate) async fn tally(
+pub async fn tally(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     nouns_voting_address: Address,
     chain_id: U256,
@@ -337,39 +344,120 @@ pub(crate) async fn tally(
     Ok(())
 }
 
+/// This function will try to help mine the blocks until the specified block number
+/// It will do transactions to increase the block number, only valid for local testing
+pub async fn mine_blocks_until(
+    eth_connection: Provider<Http>,
+    wallet_address: Address,
+    client: &SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+    target_block: u64,
+) -> Result<(), String> {
+    // Get the current block number
+    let mut current_block = eth_connection
+        .get_block_number()
+        .await
+        .expect("Error getting current block number");
+
+    if current_block.as_u64() < target_block {
+        println!(
+            "Target block not yet reached! Going to mine the next {} blocks.",
+            target_block - current_block.as_u64()
+        );
+    }
+
+    // Check that the process has ended
+    while current_block.as_u64() < target_block {
+        // Do transactions to increase the block number
+
+        let tx = TransactionRequest::pay(wallet_address, 10);
+        let sent_tx = client
+            .send_transaction(tx, None)
+            .await
+            .map_err(|_e| format!("Error sending transaction to increase block number"))?;
+        let _receipt = sent_tx.await.map_err(|_e| {
+            format!(
+                "Error waiting for transaction to increase block number: {:?}",
+                _e
+            )
+        })?;
+
+        current_block = eth_connection
+            .get_block_number()
+            .await
+            .expect("Error getting current block number");
+    }
+    println!("Target block reached! Mining finished.");
+    Ok(())
+}
+
+/// Function to obtain the token ids that the user can vote with
+/// If the user has no tokens, it will try to mint new ones
+pub async fn obtain_token_ids_to_vote(
+    wallet_address: Address,
+    nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+    client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+) -> Result<Vec<EthersU256>, String> {
+    let client = Arc::new(client);
+    // Request from voting contract the nouns token address
+    let nouns_token_address = nouns_voting.nouns_token().call().await.unwrap();
+    let nouns_token = NounsToken::new(nouns_token_address, client);
+
+    // Get the balance of the account and check if user has any tokens or can mint new ones
+    let mut balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
+    let minter = nouns_token.minter().call().await.unwrap();
+
+    if minter != wallet_address && balance == EthersU256::zero() {
+        Err(
+            "User has no tokens and cannot mint new ones. Thus will not be able to vote."
+                .to_string(),
+        )?;
+    }
+
+    // If balance is zero, but can mint, call mint function for nouns token
+    if balance == EthersU256::zero() && minter == wallet_address {
+        let request = nouns_token.mint();
+        let _tx = request.send().await.unwrap();
+        balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
+    }
+
+    // Print the id of all owned tokens
+    let mut token_ids = vec![];
+    let mut index = EthersU256::zero();
+    while balance > index {
+        let token_id = nouns_token
+            .token_of_owner_by_index(wallet_address, index)
+            .call()
+            .await
+            .unwrap();
+
+        token_ids.push(token_id);
+        index = index.add(EthersU256::from(1));
+    }
+
+    Ok(token_ids)
+}
+
 #[cfg(test)]
 mod test {
-    use std::io;
-    use std::ops::{Add, Sub};
-    use std::str::FromStr;
+    use std::ops::Sub;
     use std::sync::Arc;
     use std::time::Duration;
 
     use ethers::abi::Address;
     use ethers::core::k256::ecdsa::SigningKey;
     use ethers::middleware::SignerMiddleware;
-    use ethers::prelude::{
-        abigen, LocalWallet, Middleware, ProviderExt, Signer, TransactionRequest, Wallet, H160,
-    };
+    use ethers::prelude::{Wallet, H160};
     use ethers::providers::Http;
     use ethers::providers::Provider;
     use ethers::types::U256;
 
-    use nouns_protocol::{wrap, wrap_into, BN254_Fr, PrivateKey, VoteChoice, Wrapper};
+    use nouns_protocol::{wrap, wrap_into, PrivateKey, VoteChoice, Wrapper};
 
     use crate::ethereum::contract_interactions::{
-        create_process, reg_key, tally, vote, NounsVoting,
+        create_process, mine_blocks_until, obtain_token_ids_to_vote, reg_key, tally, vote,
+        NounsVoting,
     };
-
-    abigen!(
-        NounsTokenTest,
-        r#"[
-            function balanceOf(address owner) public view virtual returns (uint256)
-            function tokenOfOwnerByIndex(address owner, uint256 index) public view virtual returns (uint256)
-            function mint() public returns (uint256)   
-            function minter() public view returns (address)
-         ]"#
-    );
+    use crate::{setup_connection, setup_env_parameters};
 
     #[tokio::test]
     async fn integration_test_of_contract_interactions() -> Result<(), String> {
@@ -524,214 +612,5 @@ mod test {
             .await
             .expect("Error getting tally");
         Ok(result)
-    }
-
-    #[tokio::test]
-    async fn premint_nouns() -> Result<(), String> {
-        //// Set the simulation parameters
-
-        let (tx_private_key, rpc_url, voting_address) = setup_env_parameters();
-
-        //// Configure the System Parameters
-
-        let (_, wallet_address, client, _) = setup_connection(tx_private_key, rpc_url).await;
-
-        let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
-
-        //// Obtain the TokenIds owned by the wallet (possibly minting some)
-
-        let token_ids =
-            obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
-                .await
-                .map_err(|e| format!("Error obtaining token ids: {}", e))?;
-
-        println!("Available TokenIds: {:?}", token_ids);
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_tlcs_key_pair() {
-        let tlcs_prk = PrivateKey::import(vec![1u8; 32]).unwrap();
-        let tlcs_pubk = tlcs_prk.public();
-
-        let tlcs_pubk_s: [ethers::core::k256::U256; 2] = wrap_into!(tlcs_pubk);
-        let tlcs_prk_s: BN254_Fr = wrap_into!(tlcs_prk.scalar_key());
-        let tlcs_prk_s: ethers::core::k256::U256 = wrap_into!(tlcs_prk_s);
-
-        println!("tlcs_prk: {}", tlcs_prk_s);
-        println!("tlcs_pubk: '{},{}'", tlcs_pubk_s[0], tlcs_pubk_s[1]);
-    }
-
-    #[tokio::test]
-    async fn mine_blocks() {
-        //// Set the simulation parameters
-
-        let (tx_private_key, rpc_url, _) = setup_env_parameters();
-
-        let (eth_connection, wallet_address, client, _) =
-            setup_connection(tx_private_key, rpc_url).await;
-
-        let current_block = eth_connection
-            .get_block_number()
-            .await
-            .expect("Error getting current block number")
-            .as_u64();
-
-        // Ask user how many blocks to mine
-        let mut input = String::new();
-        println!("How many blocks do you want to mine?");
-        io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
-        let blocks_to_mine: u64 = input.trim().parse().expect("Please type a number!");
-
-        mine_blocks_until(
-            eth_connection,
-            wallet_address,
-            &client,
-            current_block + blocks_to_mine,
-        )
-        .await
-        .unwrap();
-    }
-
-    /// This function will try to help mine the blocks until the specified block number
-    /// It will do transactions to increase the block number, only valid for local testing
-    async fn mine_blocks_until(
-        eth_connection: Provider<Http>,
-        wallet_address: Address,
-        client: &SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        target_block: u64,
-    ) -> Result<(), String> {
-        // Get the current block number
-        let mut current_block = eth_connection
-            .get_block_number()
-            .await
-            .expect("Error getting current block number");
-
-        if current_block.as_u64() < target_block {
-            println!(
-                "Target block not yet reached! Going to mine the next {} blocks.",
-                target_block - current_block.as_u64()
-            );
-        }
-
-        // Check that the process has ended
-        while current_block.as_u64() < target_block {
-            // Do transactions to increase the block number
-
-            let tx = TransactionRequest::pay(wallet_address, 10);
-            let sent_tx = client
-                .send_transaction(tx, None)
-                .await
-                .map_err(|_e| format!("Error sending transaction to increase block number"))?;
-            let _receipt = sent_tx.await.map_err(|_e| {
-                format!(
-                    "Error waiting for transaction to increase block number: {:?}",
-                    _e
-                )
-            })?;
-
-            current_block = eth_connection
-                .get_block_number()
-                .await
-                .expect("Error getting current block number");
-        }
-        println!("Target block reached! Mining finished.");
-        Ok(())
-    }
-
-    async fn obtain_token_ids_to_vote(
-        wallet_address: Address,
-        nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-        client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-    ) -> Result<Vec<U256>, String> {
-        let client = Arc::new(client);
-        // Request from voting contract the nouns token address
-        let nouns_token_address = nouns_voting.nouns_token().call().await.unwrap();
-        let nouns_token = NounsTokenTest::new(nouns_token_address, client);
-
-        // Get the balance of the account and check if user has any tokens or can mint new ones
-        let mut balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
-        let minter = nouns_token.minter().call().await.unwrap();
-
-        if minter != wallet_address && balance == U256::zero() {
-            Err(
-                "User has no tokens and cannot mint new ones. Thus will not be able to vote."
-                    .to_string(),
-            )?;
-        }
-
-        // If balance is zero, but can mint, call mint function for nouns token
-        if balance == U256::zero() && minter == wallet_address {
-            let request = nouns_token.mint();
-            let _tx = request.send().await.unwrap();
-            balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
-        }
-
-        // Print the id of all owned tokens
-        let mut token_ids = vec![];
-        let mut index = U256::from(0);
-        while balance > index {
-            let token_id = nouns_token
-                .token_of_owner_by_index(wallet_address, index)
-                .call()
-                .await
-                .unwrap();
-
-            token_ids.push(token_id);
-            index = index.add(U256::from(1));
-        }
-
-        Ok(token_ids)
-    }
-
-    async fn setup_connection(
-        tx_private_key: String,
-        rpc_url: String,
-    ) -> (
-        Provider<Http>,
-        Address,
-        SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        U256,
-    ) {
-        let eth_connection = Provider::<Http>::connect(rpc_url.as_str()).await;
-        // create the signer for the txs
-
-        let wallet = LocalWallet::from_str(tx_private_key.as_str()).unwrap();
-        let wallet_address = wallet.address();
-
-        let chain_id = eth_connection
-            .get_chainid()
-            .await
-            .map_err(|_e| "Could not get chain id".to_string())
-            .unwrap();
-
-        let client = SignerMiddleware::new(
-            eth_connection.clone(),
-            wallet.with_chain_id(chain_id.as_u64()),
-        );
-        (eth_connection, wallet_address, client, chain_id)
-    }
-
-    fn setup_env_parameters() -> (String, String, H160) {
-        // Load the variables from the .env file using dotenv
-        dotenv::dotenv().ok();
-
-        // Get from the environment the TX_PRIVATE_KEY value
-        let tx_private_key = std::env::var("TX_PRIVATE_KEY").expect("TX_PRIVATE_KEY not set");
-
-        // Get from the environment the RPC_URL value
-        let rpc_url = std::env::var("RPC_URL").expect("RPC_URL not set");
-
-        // Get from the environment the VOTING_ADDRESS value
-        let voting_address = Address::from_str(
-            std::env::var("VOTING_ADDRESS")
-                .expect("VOTING_ADDRESS not set")
-                .as_str(),
-        )
-        .expect("Error parsing VOTING_ADDRESS");
-        (tx_private_key, rpc_url, voting_address)
     }
 }
