@@ -337,7 +337,7 @@ mod test {
     use ethers::core::k256::ecdsa::SigningKey;
     use ethers::middleware::SignerMiddleware;
     use ethers::prelude::{
-        abigen, LocalWallet, Middleware, ProviderExt, Signer, TransactionRequest, Wallet,
+        abigen, LocalWallet, Middleware, ProviderExt, Signer, TransactionRequest, Wallet, H160,
     };
     use ethers::providers::Http;
     use ethers::providers::Provider;
@@ -364,11 +364,39 @@ mod test {
         // Load the variables from the .env file using dotenv
         dotenv::dotenv().ok();
 
+        //// Set the simulation parameters
+
         // Get from the environment the TX_PRIVATE_KEY value
         let tx_private_key = std::env::var("TX_PRIVATE_KEY").expect("TX_PRIVATE_KEY not set");
 
         // Get from the environment the RPC_URL value
         let rpc_url = std::env::var("RPC_URL").expect("RPC_URL not set");
+
+        // Set the process duration
+        let duration = Duration::from_secs(120); // 1 block confirmation time
+
+        // Get from the environment the VOTING_ADDRESS value
+        let voting_address = Address::from_str(
+            std::env::var("VOTING_ADDRESS")
+                .expect("VOTING_ADDRESS not set")
+                .as_str(),
+        )
+        .expect("Error parsing VOTING_ADDRESS");
+        println!("Voting address: {}", voting_address);
+
+        // Get the TLCS key pair
+        let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
+        let tlcs_pubk = tlcs_prk.public();
+
+        // Generate the Voter BBJJ Private Key
+        // We do it in a function as PrivateKey does not implement Clone
+        fn voter_bbjj_prk() -> PrivateKey {
+            PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
+        }
+
+        let vote_choice = VoteChoice::Abstain;
+
+        //// Configure the System Parameters
 
         // connect to the EVM
         let eth_connection = Provider::<Http>::connect(rpc_url.as_str()).await;
@@ -388,33 +416,18 @@ mod test {
             wallet.with_chain_id(chain_id.as_u64()),
         );
 
-        // Get from the environment the VOTING_ADDRESS value
-        let voting_address = Address::from_str(
-            std::env::var("VOTING_ADDRESS")
-                .expect("VOTING_ADDRESS not set")
-                .as_str(),
-        )
-        .expect("Error parsing VOTING_ADDRESS");
-        println!("Voting address: {}", voting_address);
         let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
+
+        //// Obtain the TokenIds owned by the wallet (possibly minting some)
 
         let token_ids =
             obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
                 .await
                 .map_err(|e| format!("Error obtaining token ids: {}", e))?;
 
-        // Get the TokenIds owned by the wallet
         println!("Token ids: {:?}", token_ids);
 
-        // Get the TLCS key pair
-        let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
-        let tlcs_pubk = tlcs_prk.public();
-
-        // Generate the Voter BBJJ Private Key
-        // We do it in a function as PrivateKey does not implement Clone
-        fn voter_bbjj_prk() -> PrivateKey {
-            PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
-        }
+        //// 1. Register in zk Registry
 
         println!("\n\n1. Registering key...\n");
 
@@ -424,10 +437,12 @@ mod test {
             .map_err(|e| format!("Error registering key: {}", e))?;
 
         println!("\nKey registered successfully!\n\n\n");
+
+        //// 2. Create process
+
         println!("2. Creating process...\n");
 
         // Start the voting process
-        let duration = Duration::from_secs(120); // 1 block confirmation time
         create_process(client.clone(), voting_address, duration, tlcs_pubk.clone())
             .await
             .map_err(|e| format!("Error creating process: {}", e))?;
@@ -440,13 +455,14 @@ mod test {
             .expect("Error getting process id");
         let process_id = next_process_id.sub(U256::one());
 
+        //// 3. Submit ballot
+
         println!(
             "\nProcess created successfully with id {}!\n\n\n",
             process_id
         );
         println!("3. Submitting ballot...\n");
 
-        // Submit a ballot
         vote(
             client.clone(),
             eth_connection.clone(),
@@ -455,7 +471,7 @@ mod test {
             wrap_into!(token_ids[0]),
             wrap_into!(chain_id),
             voter_bbjj_prk(),
-            VoteChoice::Yes,
+            vote_choice,
             tlcs_pubk,
         )
         .await
@@ -466,10 +482,40 @@ mod test {
             token_ids[0]
         );
 
-        // Generate a tallier
+        //// 4. Tally the results
 
         println!("4. Tallying...\n");
 
+        let result = simulate_tally(
+            voting_address,
+            tlcs_prk,
+            eth_connection,
+            wallet_address,
+            chain_id,
+            client,
+            nouns_voting,
+            process_id,
+        )
+        .await?;
+
+        println!(
+            "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
+            result[0], result[1], result[2]
+        );
+
+        Ok(())
+    }
+
+    async fn simulate_tally(
+        voting_address: H160,
+        tlcs_prk: PrivateKey,
+        eth_connection: Provider<Http>,
+        wallet_address: Address,
+        chain_id: U256,
+        client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+        nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+        process_id: U256,
+    ) -> Result<[U256; 3], String> {
         // Get the process end block number
         let process_end_block = nouns_voting
             .get_end_block(process_id)
@@ -532,13 +578,7 @@ mod test {
             .call()
             .await
             .expect("Error getting tally");
-
-        println!(
-            "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
-            result[0], result[1], result[2]
-        );
-
-        Ok(())
+        Ok(result)
     }
 
     async fn obtain_token_ids_to_vote(
