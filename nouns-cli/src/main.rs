@@ -2,18 +2,12 @@ extern crate core;
 
 use ethers::middleware::SignerMiddleware;
 use ethers::prelude::Signer;
-pub(crate) use ethers::prelude::U256 as EthersU256;
 use ethers::providers::{Http, Middleware, Provider, ProviderExt};
 use ethers::signers::LocalWallet;
 
+use nouns_cli::cli::{get_user_input, CliCommand};
+use nouns_cli::ethereum::contract_interactions::{create_process, reg_key, tally, vote};
 use nouns_protocol::{wrap, wrap_into, Wrapper};
-
-use crate::cli::{get_user_input, CliCommand};
-use crate::ethereum::contract_interactions::{create_process, reg_key, vote};
-
-mod cli;
-mod ethereum;
-mod parsers;
 
 /// The CLI that to interact with the Nouns Anonymous Voting System
 /// As global parameters, it should take:
@@ -103,7 +97,20 @@ async fn main() {
             )
             .await
         }
-        _ => unimplemented!(),
+        CliCommand::Tally(process_id, tlcs_prk) => {
+            tally(
+                client,
+                global_param.contract_address,
+                wrap_into!(chain_id),
+                process_id,
+                tlcs_prk,
+            )
+            .await
+        }
+        _ => {
+            eprintln!("Error: Command not implemented yet");
+            std::process::exit(1);
+        }
     }
     .unwrap_or_else(|err| {
         eprintln!("Error: {}", err);

@@ -6,9 +6,8 @@ use ethers::core::k256::U256;
 use ethers::prelude::{Address, StorageProof};
 use poseidon_ark::Poseidon;
 
-use crate::utils::wrapper::Wrapper;
 use crate::utils::VoteChoice;
-use crate::{noir, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BBJJ_G1};
+use crate::{noir, wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, Wrapper, BBJJ_G1};
 
 /// Represents the Voter who votes in the process
 /// Note that we do not need to know that private key corresponding to the eth_addr
@@ -73,11 +72,11 @@ impl Voter {
         rng: &mut R,
     ) -> Result<(Ballot, Vec<u8>), String> {
         // Convert the parameters to the correct field
-        let nft_id: [BN254_Fr; 2] = Wrapper(nft_id).into();
-        let v: BN254_Fr = (v as u8).into();
-        let process_id: BN254_Fr = Wrapper(process_id).into();
-        let contract_addr: BN254_Fr = Wrapper(contract_addr).into();
-        let chain_id: [BN254_Fr; 2] = Wrapper(chain_id).into();
+        let nft_id: [BN254_Fr; 2] = wrap_into!(nft_id);
+        let process_id: BN254_Fr = wrap_into!(process_id);
+        let contract_addr: BN254_Fr = wrap_into!(contract_addr);
+        let chain_id: [BN254_Fr; 2] = wrap_into!(chain_id);
+        let v = v.into();
 
         // Prepare the inputs for the Noir circuit vote prover circuit
         let (ballot, ballot_hints) = self.gen_ballot_with_hints(

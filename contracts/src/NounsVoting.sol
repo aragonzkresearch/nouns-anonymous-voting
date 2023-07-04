@@ -13,9 +13,9 @@ contract NounsVoting {
         /// The block hash of the start block of the voting process, used to check the storage proofs
         bytes32 startBlockHash;
         /// The block number from which the storage roots were obtained
-        uint256 startBlock;
+        uint64 startBlock;
         /// The block number at which the voting process will end
-        uint256 endBlock;
+        uint64 endBlock;
         /// TLCS public key used to encrypt the votes for later decryption
         uint256[2] tlcsPublicKey;
         /// Value defining unique election state
@@ -47,6 +47,9 @@ contract NounsVoting {
         /// @dev Default value is `bytes(0)`
         bytes args;
     }
+
+    /// This when a voter submits a vote
+    event BallotCast(uint256 processId, uint256 indexed a_x, uint256 indexed a_y, uint256 indexed b);
 
     bytes32[] public_args;
 
@@ -89,7 +92,7 @@ contract NounsVoting {
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract. This will be done in a future version.
     /// @return The id of the voting process
     function createProcess(
-        uint256 blockDuration,
+        uint64 blockDuration,
         uint256[2] calldata tlcsPublicKey
     ) public returns (uint256) {
 
@@ -115,7 +118,7 @@ contract NounsVoting {
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract
     /// @return The id of the voting process
     function createProcessWithExecutableAction(
-        uint256 blockDuration,
+        uint64 blockDuration,
         uint256[2] calldata tlcsPublicKey,
         address target,
         bytes4 funcSignature,
@@ -131,8 +134,8 @@ contract NounsVoting {
 
         votingProcesses[nextProcessId] = VotingProcess({
             startBlockHash: blockhash(block.number),
-            startBlock: block.number,
-            endBlock: block.number + blockDuration,
+            startBlock: uint64(block.number),
+            endBlock: uint64(block.number) + blockDuration,
             tlcsPublicKey: tlcsPublicKey,
             ballotsHash: 0,
             votesFor: 0,
@@ -194,21 +197,23 @@ contract NounsVoting {
         // Recalculate the election state value
         // Right now we do so as H(electionStateValue, b)
         process.ballotsHash = poseidon2.poseidon(hashingArgs);
+
+        emit BallotCast(processId, a[0], a[1], b);
     }
 
     /// @notice This function is called to end the voting process
     /// @param processId The id of the voting process
-    /// @param votesFor The number of votes for the voting process
-    /// @param votesAgainst The number of votes against the voting process
-    /// @param votesAbstain The number of votes abstaining from voting for the voting process
+    /// @param tallyResult The number of votes against, for and abstaining from voting for the voting process
     /// @param proof The proof of the tally correctness
     function submitTallyResult(
         uint256 processId,
-        uint256 votesFor,
-        uint256 votesAgainst,
-        uint256 votesAbstain,
+        uint256[3] memory tallyResult,
         bytes calldata proof
     ) public {
+
+        uint256 votesAgainst = tallyResult[0];
+        uint256 votesFor = tallyResult[1];
+        uint256 votesAbstain = tallyResult[2];
 
         // Check that the voting process exists
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
@@ -259,9 +264,38 @@ contract NounsVoting {
     /// @notice This function returns the block number when the voting process started
     /// @param processId The id of the voting process
     /// @return The block number when the voting process started
-    function getStartBlock(uint256 processId) public view returns (uint256) {
+    function getStartBlock(uint256 processId) public view returns (uint64) {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
         return votingProcesses[processId].startBlock;
+    }
+
+    /// @notice This function returns the block number when the voting process ends
+    /// @param processId The id of the voting process
+    /// @return The block number when the voting process ends
+    function getEndBlock(uint256 processId) public view returns (uint64) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].endBlock;
+    }
+
+    /// @notice This function returns the ballot hash of the voting process
+    /// @param processId The id of the voting process
+    /// @return The ballot hash of the voting process
+    function getBallotsHash(uint256 processId) public view returns (uint256) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].ballotsHash;
+    }
+
+    /// @notice This function returns the result of the voting process as a tuple of votes against, for and abstaining from voting
+    /// @param processId The id of the voting process
+    /// @return The result of the voting process as a tuple of votes against, for and abstaining from voting
+    function getTallyResult(uint256 processId) public view returns (uint256[3] memory) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        require(votingProcesses[processId].finished, "Voting process has not finished");
+        return [
+            votingProcesses[processId].votesAgainst,
+            votingProcesses[processId].votesFor,
+            votingProcesses[processId].votesAbstain
+            ];
     }
 
     /// @notice This function is used to abstract a call to the Noir Vote Verifier contract

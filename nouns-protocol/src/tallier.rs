@@ -6,9 +6,9 @@ use strum::IntoEnumIterator;
 use crate::noir::TallyProverInput;
 use crate::{noir, utils::VoteChoice, wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, Wrapper};
 
-/// Results of the tally to be fed to the tally verification circuit.
+/// Results of the tally
 pub struct Tally {
-    pub(crate) vote_count: [usize; 3],
+    pub vote_count: [usize; 3],
 }
 
 /// Represents a tallying authority
@@ -19,8 +19,8 @@ pub struct Tallier;
 /// Contains key information to decrypt the vote
 #[derive(Clone, Debug)]
 pub struct TruncatedBallot {
-    pub(crate) a: BBJJ_Ec,
-    pub(crate) b: BN254_Fr,
+    pub a: BBJJ_Ec,
+    pub b: BN254_Fr,
 }
 
 impl Tallier {
@@ -31,7 +31,7 @@ impl Tallier {
     /// @param chain_id: The chain id of the blockchain
     /// @param process_id: The process id of the process
     /// @param contract_addr: The address of the contract
-    fn tally(
+    pub fn tally(
         ballots: Vec<TruncatedBallot>,
         tlcs_prk: BBJJ_Fr,
         ballot_hash: BN254_Fr,
@@ -145,11 +145,86 @@ impl Tallier {
 mod test {
     use ethers::core::k256::U256;
     use ethers::prelude::Address;
+    use poseidon_ark::Poseidon;
     use rand::Rng;
 
-    use crate::tallier::{Tallier, TruncatedBallot};
-    use crate::utils::mock::Mock;
-    use crate::{BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+    use crate::tallier::{Tallier, Tally, TruncatedBallot};
+    use crate::utils::{mock::Mock, wrapper::Wrapper, VoteChoice};
+    use crate::voter::Voter;
+    use crate::{BBJJ_Ec, BN254_Fr, PrivateKey, BBJJ_G1};
+
+    fn gen_tally<R: Rng>(rng: &mut R, num_voters: usize) -> Result<(Tally, Vec<u8>), String> {
+        let poseidon = Poseidon::new();
+
+        let nft_id = (0..num_voters).map(|_| U256::mock(rng)).collect::<Vec<_>>();
+        let process_id = U256::from(rng.gen_range(0..100u8));
+        let contract_addr = Address::mock(rng);
+        let chain_id = U256::mock(rng);
+        let tlcs_prk = PrivateKey::mock(rng);
+        let tlcs_pk = BBJJ_G1.mul_scalar(&tlcs_prk.scalar_key());
+
+        let voter = (0..num_voters)
+            .map(|_| Voter::mock(rng))
+            .collect::<Vec<Voter>>();
+
+        let v = (0..num_voters)
+            .map(|_| VoteChoice::mock(rng))
+            .collect::<Vec<_>>();
+
+        let ballot = std::iter::zip(voter, std::iter::zip(nft_id, v))
+            .map(|(voter, (nft_id, v))| {
+                voter
+                    .gen_ballot_with_hints(
+                        Wrapper(nft_id).into(),
+                        (v as u32).into(),
+                        Wrapper(process_id).into(),
+                        Wrapper(contract_addr).into(),
+                        Wrapper(chain_id).into(),
+                        tlcs_pk.clone(),
+                        rng,
+                    )
+                    .unwrap()
+                    .0
+            })
+            .collect::<Vec<_>>();
+
+        let truncated_ballot = ballot
+            .iter()
+            .map(|ballot| TruncatedBallot {
+                a: ballot.a.clone(),
+                b: ballot.b.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let b_k = truncated_ballot
+            .clone()
+            .into_iter()
+            .map(|tb| tb.b)
+            .reduce(|acc, x| {
+                poseidon
+                    .hash(vec![x, acc])
+                    .expect("Error computing Poseidon hash!")
+            })
+            .unwrap();
+
+        Tallier::tally(
+            truncated_ballot,
+            tlcs_prk.scalar_key(),
+            b_k,
+            chain_id,
+            process_id,
+            contract_addr,
+        )
+
+        //        Tallier::new(a, b, tlcs_sk, b_k)
+    }
+
+    #[test]
+    fn test10() {
+        let rng = &mut ark_std::test_rng();
+
+        gen_tally(rng, 10).unwrap();
+    }
 
     #[test]
     fn test_tally_gen() -> Result<(), String> {
@@ -171,7 +246,7 @@ mod test {
                     b: BN254_Fr::mock(rng),
                 },
             ],
-            BBJJ_Fr::mock(rng),
+            PrivateKey::mock(rng).scalar_key(),
             BN254_Fr::mock(rng),
             U256::mock(rng),
             U256::from(rng.gen_range(0..100u8)),

@@ -17,7 +17,7 @@ import "../src/NounsVoting.sol";
 import "nouns-monorepo/packages/nouns-contracts/contracts/NounsDescriptorV2.sol";
 
 
-contract NounsVotingDeployScript is Script {
+contract NounsMainnetVotingDeployScript is Script {
 
     function setUp() public {}
 
@@ -43,13 +43,7 @@ contract NounsVotingDeployScript is Script {
         // This address is only used for the OpenSea integration
         IProxyRegistry proxyRegistry = IProxyRegistry(address(0x0));
 
-        NounsToken token = new NounsToken(
-            deployerAddress, // owner
-            deployerAddress, // minter
-            nounsDescriptor,
-            nounsSeeder,
-            proxyRegistry
-        );
+        NounsToken token = NounsToken(address(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03));
 
         ZKRegistry zkRegistry = new ZKRegistry();
         // TODO - Deploy Correct Noir Vote Verifier

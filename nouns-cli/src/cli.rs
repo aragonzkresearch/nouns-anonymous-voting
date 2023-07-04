@@ -5,30 +5,30 @@ use clap::{command, Arg, Command};
 use ethers::abi::Address;
 use ethers::core::k256::U256;
 
-use nouns_protocol::{BBJJ_Ec, PrivateKey, VoteChoice};
+use nouns_protocol::{BBJJ_Ec, BBJJ_Fr, PrivateKey, VoteChoice};
 
 use crate::parsers::{
     parse_bbjj_prk, parse_duration, parse_private_key, parse_tlcs_pbk, parse_u256,
 };
 
 /// The global parameters of the CLI
-pub(crate) struct GlobalCliParams {
-    pub(crate) contract_address: Address,
-    pub(crate) rpc_url: String,
-    pub(crate) tx_private_key: [u8; 32],
+pub struct GlobalCliParams {
+    pub contract_address: Address,
+    pub rpc_url: String,
+    pub tx_private_key: [u8; 32],
 }
 
 /// The CLI commands that the user can choose from
 /// Parameters are passed as arguments and the command is executed
-pub(crate) enum CliCommand {
+pub enum CliCommand {
     RegKey(PrivateKey),
     CreateProcess(Duration, BBJJ_Ec),
     Vote(U256, U256, PrivateKey, VoteChoice, BBJJ_Ec),
-    Tally(U256, PrivateKey),
+    Tally(U256, BBJJ_Fr),
     None, // No command was chosen
 }
 
-pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
+pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
     let command = command_constructor();
     let matches = command.get_matches();
 
@@ -59,8 +59,12 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
             .get_one("reg-private-key")
             .ok_or("Missing key to register in ZKRegistry")?;
 
-        let key_to_reg =
-            parse_bbjj_prk(key_to_reg).map_err(|_e| "Invalid key to register in ZKRegistry")?;
+        let key_to_reg = PrivateKey::import(
+            parse_private_key(key_to_reg)
+                .map_err(|e| format!("Invalid key to register in ZKRegistry: {}", e))?
+                .to_vec(),
+        )
+        .map_err(|e| format!("Invalid key to register in ZKRegistry: {}", e))?;
 
         return Ok((global_cli_param, CliCommand::RegKey(key_to_reg)));
     }
@@ -105,8 +109,13 @@ pub(crate) fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> 
         );
         // We allow the user to pass the nft id as a decimal or as a hex string (with or without the 0x prefix)
         let nft_id = parse_u256(nft_id)?;
-        let nft_owner_prk =
-            parse_bbjj_prk(nft_owner_prk).map_err(|_e| "Invalid nft owner private key")?;
+        let nft_owner_prk = PrivateKey::import(
+            parse_private_key(nft_owner_prk)
+                .map_err(|e| format!("Invalid nft owner private key: {}", e))?
+                .to_vec(),
+        )
+        .map_err(|e| format!("Invalid nft owner private key: {}", e))?;
+
         let vote_choice = VoteChoice::from(vote_choice.as_str());
         let tlcs_pbk = parse_tlcs_pbk(tlcs_pbk)?;
 

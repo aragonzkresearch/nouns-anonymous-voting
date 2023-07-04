@@ -60,7 +60,7 @@ impl From<Wrapper<U256>> for BN254_Fr {
 impl From<Wrapper<BN254_Fr>> for U256 {
     fn from(value: Wrapper<BN254_Fr>) -> Self {
         // Convert the BN254_Fr to a U256.
-        U256::from_be_slice(value.0 .0.to_bytes_be().as_slice())
+        U256::from_be_slice(value.0.into_bigint().to_bytes_be().as_slice())
     }
 }
 
@@ -82,19 +82,29 @@ impl From<Wrapper<Address>> for BN254_Fr {
     }
 }
 
-impl From<BBJJ_Fr> for Wrapper<BN254_Fr> {
-    fn from(value: BBJJ_Fr) -> Self {
-        Wrapper(BN254_Fr::from_be_bytes_mod_order(
-            value.into_bigint().to_bytes_be().as_slice(),
-        ))
+impl From<Wrapper<BBJJ_Fr>> for BN254_Fr {
+    fn from(value: Wrapper<BBJJ_Fr>) -> Self {
+        BN254_Fr::from_be_bytes_mod_order(value.0.into_bigint().to_bytes_be().as_slice())
     }
 }
 
 impl From<Wrapper<BBJJ_Ec>> for [U256; 2] {
     fn from(value: Wrapper<BBJJ_Ec>) -> Self {
-        let bbjj_pbk_x = U256::from_be_slice(value.0.x.0.to_bytes_be().as_slice());
-        let bbjj_pbk_y = U256::from_be_slice(value.0.y.0.to_bytes_be().as_slice());
+        let bbjj_pbk_x = U256::from_be_slice(value.0.x.into_bigint().to_bytes_be().as_slice());
+        let bbjj_pbk_y = U256::from_be_slice(value.0.y.into_bigint().to_bytes_be().as_slice());
         [bbjj_pbk_x, bbjj_pbk_y]
+    }
+}
+
+impl From<Wrapper<[U256; 2]>> for BBJJ_Ec {
+    fn from(value: Wrapper<[U256; 2]>) -> Self {
+        let bbjj_pbk_x = wrap_into!(value.0[0]);
+        let bbjj_pbk_y = wrap_into!(value.0[1]);
+
+        BBJJ_Ec {
+            x: bbjj_pbk_x,
+            y: bbjj_pbk_y,
+        }
     }
 }
 
@@ -120,5 +130,59 @@ impl From<Wrapper<EthersU256>> for U256 {
         value.0.to_big_endian(&mut bytes);
 
         U256::from_be_slice(bytes.as_slice())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use ethers::core::k256::U256;
+
+    use crate::BN254_Fr;
+
+    use super::Wrapper;
+
+    #[test]
+    fn test_bn254_fr_deserialisation() {
+        let num = U256::from(120u8);
+        let num_fr: BN254_Fr = wrap_into!(num);
+
+        assert_eq!(num_fr, BN254_Fr::from(120u8));
+    }
+
+    #[test]
+    fn test_bn254_fr_serialisation() {
+        let num_fr = BN254_Fr::from(120u8);
+        let num: U256 = wrap_into!(num_fr);
+
+        assert_eq!(num, U256::from(120u8));
+    }
+
+    #[test]
+    fn test_bbjj_ec_serialisation() {
+        let bbjj_ec = crate::BBJJ_Ec {
+            x: wrap_into!(U256::from(120u8)),
+            y: wrap_into!(U256::from(125u8)),
+        };
+        let bbjj_ec_array: [U256; 2] = wrap_into!(bbjj_ec);
+
+        assert_eq!(bbjj_ec_array[0], U256::from(120u8));
+        assert_eq!(bbjj_ec_array[1], U256::from(125u8));
+    }
+
+    #[test]
+    fn test_bbjj_ec_deserialisation() {
+        let bbjj_ec_array = [U256::from(120u8), U256::from(125u8)];
+        let bbjj_ec: crate::BBJJ_Ec = wrap_into!(bbjj_ec_array);
+
+        assert_eq!(bbjj_ec.x, wrap_into!(U256::from(120u8)));
+        assert_eq!(bbjj_ec.y, wrap_into!(U256::from(125u8)));
+    }
+
+    #[test]
+    fn test_bn254_fr_to_string() {
+        let num_fr = BN254_Fr::from(120u8);
+        let num: U256 = wrap_into!(num_fr);
+
+        assert_eq!(num.to_string(), U256::from(120u8).to_string());
     }
 }

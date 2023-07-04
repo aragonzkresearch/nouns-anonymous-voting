@@ -9,7 +9,7 @@ authors = ["AZKR Team"]
 [features]
 # This feature is used to disable the noir proving system and replaces it with a dummy proof.
 # This is useful for testing the rest of the code without having to wait for the proof to be generated.
-mock-noir = []
+mock-prover = []
 
 [dependencies]
 

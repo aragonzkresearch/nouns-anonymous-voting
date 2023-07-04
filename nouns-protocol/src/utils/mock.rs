@@ -91,3 +91,13 @@ impl Mock for BN254_Fr {
         BN254_Fr::from_be_bytes_mod_order(num.to_be_bytes().as_slice())
     }
 }
+
+impl Mock for PrivateKey {
+    fn mock<R: Rng>(rng: &mut R) -> Self {
+        // Generate a random Vec of bytes length 32
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+
+        PrivateKey::import(bytes.to_vec()).expect("Could not generate a mock BBJJ Private Key.")
+    }
+}
