@@ -31,13 +31,13 @@ environment variable. Refer to the `.env.template` file for more information.
 1. To run from source with the private key set as an environment variable:
 
 ```bash
-    cargo run -- reg-key
+    nouns-cli reg-key
 ```
 
 2. To run from source with the private key set as a command line argument:
 
 ```bash
-    cargo run -- reg-key -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d
+    nouns-cli reg-key -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d
 ```
 
 ### Create Process
@@ -57,13 +57,13 @@ command._
 1. To create a process with duration of 1 day:
 
 ```bash
-    cargo run -- create-process -d 1d -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli create-process -d 1d -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
 2. To create a process with duration of 10 hours:
 
 ```bash
-    cargo run -- create-process -d 10h -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli create-process -d 10h -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
 ### Vote
@@ -81,7 +81,7 @@ As part of the vote, you need to provide the following information:
 _**Note:** make sure that the NFT indeed exists in the Nouns Token contract._
 
 ```bash
-    cargo run -- vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
 ```
 
 ### Tally
@@ -98,7 +98,7 @@ you can mine these blocks by running `cargo run --bin mine_blocks` command. Note
 seconds.
 
 ```bash
-    cargo run -- tally -p 0 -t 059D6B0FE7AD950D220261FE28B7C8B514E3B06D8EBC17179C469120A366B8C9
+    nouns-cli tally -p 0 -t 059D6B0FE7AD950D220261FE28B7C8B514E3B06D8EBC17179C469120A366B8C9
 ```
 
 

@@ -9,12 +9,15 @@ use ethers::prelude::{
     abigen, Address, BigEndianHash, Http, LocalWallet, Middleware, Provider, SignerMiddleware,
     TransactionRequest, Wallet,
 };
-use ethers::types::U64;
+use ethers::types::{Bytes, U64};
 
 use nouns_protocol::{
     wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
     Wrapper,
 };
+
+// TODO: Factor out
+use nouns_protocol::noir::toml::TomlSerializable;
 
 use crate::ethereum::storage_proofs::{get_nft_ownership_proof, get_zk_registry_proof};
 use crate::EthersU256;
@@ -32,7 +35,7 @@ abigen!(
             function zkRegistry() view returns (address)
             function nounsToken() view returns (address)
             function nextProcessId() view returns (uint256)
-            function createProcess(uint64 blockDuration,uint256[2] calldata tlcsPublicKey) public returns(uint256)  
+            function createProcess(uint64 blockDuration,uint256[2] calldata tlcsPublicKey, uint64 block_number, bytes32 state_root,bytes32 registry_storage_root,bytes32 nft_storage_root, bytes calldata hash_proof) public returns(uint256)  
             function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,uint256 h_id,bytes calldata proof)
             function submitTallyResult(uint256 processId,uint256[3] memory tallyResult,bytes calldata proof) public
             function getStartBlock(uint256 processId) public view returns (uint64)
@@ -106,6 +109,7 @@ pub async fn reg_key(
 /// Function that creates a new voting process in the NounsVoting contract.
 pub async fn create_process(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
+    eth_connection: Provider<Http>,
     contract_address: Address,
     process_duration: Duration,
     tlcs_pbk: BBJJ_Ec,
@@ -118,13 +122,67 @@ pub async fn create_process(
     // Get amount of blocks for the process duration, rounded up
     let process_duration = U64::from(process_duration.as_secs() / ETH_BLOCK_TIME + 1);
 
+    // Before creating process, need to obtain current state and storage roots for the relevant contracts
+    // and submit a proof that these are consistent with the current block hash.
+
+    // First fetch current block number, block hash, block header and state root
+    let block_number = eth_connection.get_block_number().await.map_err(|_| format!("Error getting current block number"))?;
+    let block = eth_connection.get_block(block_number).await.map_err(|_| format!("Error obtaining block data"))?.unwrap();
+    let block_hash = block.hash.unwrap();
+    let block_header = proof::header_from_block(&block)?;
+    let state_root = block.state_root;
+
+    // Then fetch state proofs and storage hashes of the relevant contracts
+    // First fetch addresses from voting contract
+    let nouns_token_address = nouns_voting.nouns_token().call().await.map_err(|e| {
+        format!("Error getting the NounsToken address from the NounsVoting contract: {e:?}")
+    })?;
+    
+    let zk_registry_address = nouns_voting.zk_registry().call().await.map_err(|e| {
+        format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
+    })?;
+
+    
+    // Then fetch state proofs
+    let zk_registry_state_proof = proof::get_state_proof(&eth_connection, block_number, zk_registry_address).await?;
+    let nouns_token_contract_state_proof = proof::get_state_proof(&eth_connection, block_number, nouns_token_address).await?;
+
+    // ...and storage roots
+    let zk_registry_storage_root = eth_connection.get_proof(zk_registry_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
+        let nouns_token_contract_storage_root = eth_connection.get_proof(nouns_token_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
+
+    // Toml serialise
+    let mut toml_map = toml::map::Map::new();
+
+    toml_map.insert("block_hash".to_string(), block_hash.toml());
+    toml_map.insert("block_header".to_string(), block_header.toml());
+    toml_map.insert("state_root".to_string(), state_root.toml());
+    toml_map.insert("registry_address".to_string(), zk_registry_address.toml());
+    toml_map.insert("registry_state_proof".to_string(), zk_registry_state_proof.toml());
+    toml_map.insert("registry_storage_root".to_string(), zk_registry_storage_root.toml());
+    toml_map.insert("nft_contract_address".to_string(), nouns_token_address.toml());
+    toml_map.insert("nft_state_proof".to_string(), nouns_token_contract_state_proof.toml());
+    toml_map.insert("nft_storage_root".to_string(), nouns_token_contract_storage_root.toml());
+
+    let prover_toml = toml::Value::Table(toml_map);
+        
+    // Plug everything in to hash_verifier circuit
+    let circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
+
+    let circuit_config_toml = include_str!("../../../circuits/hash_proof/Nargo.toml");
+
+    let proof = nouns_protocol::noir::run_singleton_noir_project(circuit_config_toml, circuit, prover_toml).map_err(|_| "Proof generation failed.")?;
+    
+    // Pass proof together with state root, storage roots and block number along to process creation request,
+    // since the remaining public inputs lie (or may be obtained) within the contract itself
+
     let create_process_request =
-        nouns_voting.create_process(process_duration.as_u64(), wrap_into!(wrap_into!(tlcs_pbk)));
+        nouns_voting.create_process(process_duration.as_u64(), wrap_into!(wrap_into!(tlcs_pbk)), block_number.as_u64(), state_root.into(), zk_registry_storage_root.into(), nouns_token_contract_storage_root.into(), proof.into());
 
     let tx = create_process_request
         .send()
         .await
-        .map_err(|_e| format!("Error sending createProcess tx"))?;
+        .map_err(|e| format!("Error sending createProcess tx: {}", e))?;
 
     let process_id = nouns_voting.next_process_id().call().await.map_err(|e| {
         format!("Error getting the next process id from the NounsVoting contract: {e:?}")
@@ -164,11 +222,12 @@ pub async fn vote(
             format!("Error getting the NounsTokenID from the Nouns Token contract: {e:?}")
         })?;
 
+    // TODO: Change this.
     let start_block_number = nouns_voting
         .get_start_block(wrap_into!(process_id))
         .call()
         .await
-        .map_err(|_| format!("Error getting start block number"))?;
+        .map_err(|_| format!("Error getting census block number"))?;
 
     let zk_registry_address = nouns_voting.zk_registry().call().await.map_err(|e| {
         format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
@@ -186,7 +245,7 @@ pub async fn vote(
     let expected_value: [U256; 2] = wrap_into!(bbjj_private_key.public());
     if registry_account_state_proof_x.value != wrap_into!(expected_value[0]) {
         return Err(format!(
-            "Error: The BBJJ Public Key X value in the storage proof is not the expected one."
+            "The public key you specified is invalid or does not exist. Are you sure you enrolled to vote?"
         ));
     }
 
@@ -244,7 +303,7 @@ pub async fn vote(
     let tx = submit_vote_request
         .send()
         .await
-        .map_err(|_e| format!("Error sending vote tx"))?;
+        .map_err(|e| format!("Error sending vote tx: {}", e))?;
 
     println!("Tx Hash: {}", tx.tx_hash());
     println!("Vote submitted successfully!");
@@ -292,7 +351,7 @@ pub async fn tally(
                 log.transaction_hash
             ));
         }
-
+        println!("{:?}", log);
         let a_x: U256 = wrap_into!(log.topics[1].into_uint());
         let a_y: U256 = wrap_into!(log.topics[2].into_uint());
         let b: U256 = wrap_into!(log.topics[3].into_uint());
@@ -301,6 +360,7 @@ pub async fn tally(
             a: wrap_into!([a_x, a_y]),
             b: wrap_into!(b),
         };
+        println!("{:?}", truncated_ballot);
 
         ballots.push(truncated_ballot);
     }
@@ -333,7 +393,7 @@ pub async fn tally(
     let tx = submit_tally_result_request
         .send()
         .await
-        .map_err(|_| format!("Error sending tally tx"))?;
+        .map_err(|e| format!("Error sending tally tx: {}", e))?;
 
     println!("Tx Hash: {}", tx.tx_hash());
     println!(
@@ -613,4 +673,147 @@ mod test {
             .expect("Error getting tally");
         Ok(result)
     }
+}
+
+// TODO: Move and combine with storage_proofs
+mod proof {
+    use ethers::types::{Address, Block, Bytes, H256, U64};
+    use ethers::prelude::{Http, Middleware, Provider};
+    use ethers::utils::rlp;
+
+    use nouns_protocol::noir;
+
+    use toml;
+    
+    #[derive(Debug, Default, Clone, PartialEq, Eq)]
+    pub struct StateProof {
+        pub key: Address,
+        pub proof: Vec<Bytes>,
+        pub value: Vec<u8>,
+    }
+
+    impl noir::toml::TomlSerializable for StateProof {
+        fn toml(self) -> toml::Value {
+            let mut map = toml::map::Map::new();
+            let depth = self.proof.len();
+
+            let path = self
+                .proof
+                .into_iter()
+                .map(|b| b.to_vec())
+                .collect::<Vec<_>>();
+
+            // Proof path needs to be an appropriately padded flat array.
+            let padded_path = path
+                .into_iter()
+                .chain({
+                    let depth_excess = noir::MAX_DEPTH - depth;
+                    // Append with empty nodes to fill up to depth MAX_DEPTH
+                    vec![vec![]; depth_excess]
+                })
+                .map(|mut v| {
+                    let node_len = v.len();
+                    let len_excess = noir::MAX_NODE_LEN - node_len;
+                    // Then pad each node up to length MAX_NODE_LEN
+                    v.append(&mut vec![0; len_excess]);
+                    v
+                })
+                .flatten()
+                .collect::<Vec<u8>>(); // And flatten.
+            map.insert("proof".to_string(), padded_path.toml());
+
+            let key: [u8; 20] = self.key.into();
+
+            let value_len = self.value.len();
+
+            assert!(value_len <= noir::MAX_ACCOUNT_STATE_SIZE);
+
+            let mut value = vec![0u8; noir::MAX_ACCOUNT_STATE_SIZE - value_len];
+            
+            value.append(&mut self.value.clone());
+
+            map.insert("key".to_string(), key.to_vec().toml());
+            map.insert("value".to_string(), value.toml());
+            map.insert("depth".to_string(), depth.toml());
+
+            toml::Value::Table(map)
+
+        }
+    }
+
+    impl noir::toml::TomlSerializable for BlockHeader {
+        fn toml(self) -> toml::Value {
+            let mut value = self.0.clone();
+            let value_len = value.len();
+            assert!(value_len <= noir::MAX_BLOCK_HEADER_SIZE);
+            value.append(&mut vec![0; noir::MAX_BLOCK_HEADER_SIZE - value_len]);
+
+            value.toml()
+        }
+    }
+
+    #[derive(Debug, Default, Clone, PartialEq, Eq)]
+    pub struct BlockHeader(Vec<u8>);
+
+    pub(crate) async fn get_state_proof(
+        eth_connection: &Provider<Http>,
+        block_number: U64,
+        address: Address)
+        -> Result<StateProof, String>
+    {
+        // Call eth_getProof
+        let proof_data = eth_connection.get_proof(address, vec![], Some(block_number.into())).await.expect("Error getting state proof");
+
+        // Form proof in the form of a path
+        let proof = proof_data.account_proof;
+
+        // Extract value in RLP form
+        // TODO: Integrity check
+        let value = rlp::Rlp::new(
+            proof.last() // Terminal proof node
+                .expect("Error: State proof empty")) // Proof should have been non-empty
+            .as_list::<Vec<u8>>().expect("Error: Invalid RLP encoding")
+            .last() // Extract value
+            .expect("Error: RLP list empty").clone()
+        ;
+
+        
+        Ok(
+            StateProof {
+                key: address,
+                proof,
+                value
+            }
+        )
+    }
+
+    pub(crate) fn header_from_block(
+        block: &Block<H256>) -> Result<BlockHeader, String>
+    {
+        let fork_headsup = "Error: Should be on Shanghai fork.";
+            
+        let mut block_header = rlp::RlpStream::new_list(17);
+
+        block_header.append(&block.parent_hash);
+        block_header.append(&block.uncles_hash);
+        block_header.append(&block.author.unwrap());
+        block_header.append(&block.state_root);
+        block_header.append(&block.transactions_root);
+        block_header.append(&block.receipts_root);
+        block_header.append(&block.logs_bloom.unwrap());
+        block_header.append(&block.difficulty);
+        block_header.append(&block.number.unwrap());
+        block_header.append(&block.gas_limit);
+        block_header.append(&block.gas_used);
+        block_header.append(&block.timestamp);
+        block_header.append(&block.extra_data.as_ref()); // ...
+        block_header.append(&block.mix_hash.unwrap());
+        block_header.append(&block.nonce.unwrap());
+        block_header.append(&block.base_fee_per_gas.expect(fork_headsup));
+        block_header.append(&block.withdrawals_root.expect(fork_headsup));
+
+        Ok(BlockHeader(block_header.out().into()))
+    }
+        
+        
 }

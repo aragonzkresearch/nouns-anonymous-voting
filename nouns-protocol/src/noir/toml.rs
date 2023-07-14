@@ -1,6 +1,6 @@
 use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
-use ethers::types::StorageProof;
+use ethers::types::{Address, H256, StorageProof};
 use toml::Value;
 
 use crate::noir::{TallyProverInput, VoteProverInput, MAX_DEPTH, MAX_NODE_LEN};
@@ -130,6 +130,7 @@ impl TomlSerializable for StorageProof {
 
         map.insert("key".to_string(), key.to_vec().toml());
         map.insert("value".to_string(), value.to_vec().toml());
+        map.insert("depth".to_string(), depth.toml());
 
         Value::Table(map)
     }
@@ -207,5 +208,17 @@ impl TomlSerializable for Signature {
 impl TomlSerializable for BBJJ_Ec {
     fn toml(self) -> Value {
         Value::Array(vec![self.x.toml(), self.y.toml()])
+    }
+}
+
+impl TomlSerializable for H256 {
+    fn toml(self) -> Value {
+        <[u8; 32]>::from(self).to_vec().toml()
+    }
+}
+
+impl TomlSerializable for Address {
+    fn toml(self) -> Value {
+        BN254_Fr::from_be_bytes_mod_order(&<[u8; 20]>::from(self)).toml()
     }
 }

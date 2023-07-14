@@ -12,6 +12,8 @@ import "nouns/NounsSeeder.sol";
 
 import "../src/ZKRegistry.sol";
 import "../src/INoirVerifier.sol";
+import "../src/HashVerifier.sol";
+import "../src/VoteVerifier.sol";
 import "../src/Poseidon.sol";
 import "../src/NounsVoting.sol";
 import "nouns-monorepo/packages/nouns-contracts/contracts/NounsDescriptorV2.sol";
@@ -52,8 +54,10 @@ contract NounsVotingDeployScript is Script {
         );
 
         ZKRegistry zkRegistry = new ZKRegistry();
+	// TODO
+	INoirVerifier noirHashVerifier = new HashVerifier();
         // TODO - Deploy Correct Noir Vote Verifier
-        INoirVerifier noirVoteVerifier = new YesManNoirVerifier();
+        INoirVerifier noirVoteVerifier = new VoteVerifier();
         // TODO - Deploy Correct Noir Tally Verifier
         INoirVerifier noirTallyVerifier = new YesManNoirVerifier();
         PoseidonFactory poseidonFactory = new PoseidonFactory();
@@ -61,6 +65,7 @@ contract NounsVotingDeployScript is Script {
         NounsVoting nounsVoting = new NounsVoting(
             token,
             zkRegistry,
+	    noirHashVerifier,
             noirVoteVerifier,
             noirTallyVerifier,
             poseidonFactory.poseidon2()

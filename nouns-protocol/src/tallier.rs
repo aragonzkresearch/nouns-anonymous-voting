@@ -200,12 +200,11 @@ mod test {
             .clone()
             .into_iter()
             .map(|tb| tb.b)
-            .reduce(|acc, x| {
+            .fold(0.into(), |acc, x| {
                 poseidon
-                    .hash(vec![x, acc])
+                    .hash(vec![acc, x])
                     .expect("Error computing Poseidon hash!")
-            })
-            .unwrap();
+            });
 
         Tallier::tally(
             truncated_ballot,
@@ -216,7 +215,6 @@ mod test {
             contract_addr,
         )
 
-        //        Tallier::new(a, b, tlcs_sk, b_k)
     }
 
     #[test]

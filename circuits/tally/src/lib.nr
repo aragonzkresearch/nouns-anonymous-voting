@@ -30,13 +30,12 @@ fn verify_tally<N>(
     }
 
     // Compute b_k_prime
-    let mut b_k_prime = b[0];
+    let mut b_k_prime = 0;
     
-    for i in 1..N
+    for i in 0..N
     {
         let voter_p = ((i as u32) < (num_voters as u32)) as Field;
-        b_k_prime = voter_p*bn254::hash_2([b[i], b_k_prime]) + (1-voter_p)*b_k_prime;
-
+        b_k_prime = voter_p*bn254::hash_2([b_k_prime, b[i]]) + (1-voter_p)*b_k_prime;
     }
 
     // Check that b_k_prime agrees with b_k

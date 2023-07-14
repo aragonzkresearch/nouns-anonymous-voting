@@ -77,6 +77,7 @@ async fn main() {
         CliCommand::CreateProcess(process_duration, tlcs_pbk) => {
             create_process(
                 client,
+                eth_connection,
                 global_param.contract_address,
                 process_duration,
                 tlcs_pbk,

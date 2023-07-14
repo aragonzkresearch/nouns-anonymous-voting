@@ -110,8 +110,8 @@ impl Voter {
             nft_id,
             k: ballot_hints.k,
             registered_pbk: self.registered_sk.public(),
-            registry_key_sp: storage_proofs.0,
-            nft_ownership_proof: storage_proofs.1,
+            registry_key_sp: storage_proofs.1,
+            nft_ownership_proof: storage_proofs.0,
         };
 
         let proof = noir::prove_vote(noir_input)?;
