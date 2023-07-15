@@ -117,12 +117,12 @@ contract NounsVoting {
 	bytes32 block_hash = blockhash(block_number); // This will be zero if we're out of range, but then the proof will fail to pass.
 
 	// Form verifier argument
-	_push_h256_bytes(block_hash);
-	_push_h256_bytes(state_root);
+	_push_u256(block_hash);
+	_push_u256(state_root);
 	_push_address(address(zkRegistry));
-	_push_h256_bytes(registry_storage_root);
+	_push_u256(registry_storage_root);
 	_push_address(address(nounsToken));
-	_push_h256_bytes(nft_storage_root);
+	_push_u256(nft_storage_root);
 	
 	require(hashVerifier.verify(hash_proof, public_args), "Error: Invalid proof");
 
@@ -437,13 +437,6 @@ contract NounsVoting {
 
     return out;
     
-    }
-
-    /// Push 256-bit hash (byte array) to verifier arguments
-    function _push_h256_bytes(bytes32 arg) private 
-    {
-	bytes32[32] memory arg_bytes = _bytes32To32Bytes32(arg);
-	for(uint i = 0; i < 32; i++) public_args.push(bytes32(arg_bytes[i]));
     }
 
     /// Push 256-bit value (pair of field elements) to verifier arguments

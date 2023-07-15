@@ -100,93 +100,93 @@ fn main(
 
 fn verify_vote<MAX_PROOF_SIZE>(vote: VoteProverInput<MAX_PROOF_SIZE>)
 {
-    // let bjj_curve = baby_jubjub().curve;
+    let bjj_curve = baby_jubjub().curve;
 
-    // // Check signatures
-    // assert(eddsa_verify(vote.registered_pbk.x, vote.registered_pbk.y, vote.signed_id.s, vote.signed_id.r_b8.x, vote.signed_id.r_b8.y, vote.h_id));
-    // assert(eddsa_verify(vote.registered_pbk.x, vote.registered_pbk.y, vote.signed_v.s, vote.signed_v.r_b8.x, vote.signed_v.r_b8.y, bn254::hash_1([vote.v])));
+    // Check signatures
+    assert(eddsa_verify(vote.registered_pbk.x, vote.registered_pbk.y, vote.signed_id.s, vote.signed_id.r_b8.x, vote.signed_id.r_b8.y, vote.h_id));
+    assert(eddsa_verify(vote.registered_pbk.x, vote.registered_pbk.y, vote.signed_v.s, vote.signed_v.r_b8.x, vote.signed_v.r_b8.y, bn254::hash_1([vote.v])));
 
-    // // Check ID hash
-    // assert(vote.h_id == bn254::hash_6([vote.nft_id[0], vote.nft_id[1], vote.chain_id[0], vote.chain_id[1], vote.process_id, vote.contract_addr]));
+    // Check ID hash
+    assert(vote.h_id == bn254::hash_6([vote.nft_id[0], vote.nft_id[1], vote.chain_id[0], vote.chain_id[1], vote.process_id, vote.contract_addr]));
 
-    // // Check nullifier
-    // assert(vote.n == bn254::hash_3([vote.signed_id.r_b8.x, vote.signed_id.r_b8.y, vote.signed_id.s]));
+    // Check nullifier
+    assert(vote.n == bn254::hash_3([vote.signed_id.r_b8.x, vote.signed_id.r_b8.y, vote.signed_id.s]));
 
-    // // // Check vote encryption
-    // let b8 = baby_jubjub().base8;
-    // assert(bjj_curve.mul(vote.blinding_factor, b8).eq(vote.a));
-    // assert(vote.k.eq(bjj_curve.mul(vote.blinding_factor, vote.tlcs_pk))); // TODO
-    // assert(vote.b == bn254::hash_7([vote.k.x, vote.k.y, vote.v, vote.chain_id[0], vote.chain_id[1], vote.process_id, vote.contract_addr]));
-    // assert((vote.v == 0) | (vote.v == 1) | (vote.v == 2)); // Check validity of vote
+    // Check vote encryption
+    let b8 = baby_jubjub().base8;
+    assert(bjj_curve.mul(vote.blinding_factor, b8).eq(vote.a));
+    assert(vote.k.eq(bjj_curve.mul(vote.blinding_factor, vote.tlcs_pk))); // TODO
+    assert(vote.b == bn254::hash_7([vote.k.x, vote.k.y, vote.v, vote.chain_id[0], vote.chain_id[1], vote.process_id, vote.contract_addr]));
+    assert((vote.v == 0) | (vote.v == 1) | (vote.v == 2)); // Check validity of vote
 
-    // // Check registration by verifying x coordinate of public key
-    // let address_in_bytes = vote.voter_address.to_be_bytes(20);
-    // let calculated_registry_key = {
-    //     let mut buf = [0; 64]; // key ++ storage_slot
-    //     let mut out = keccak256(buf, 64);
+    // Check registration by verifying x coordinate of public key
+    let address_in_bytes = vote.voter_address.to_be_bytes(20);
+    let calculated_registry_key = {
+        let mut buf = [0; 64]; // key ++ storage_slot
+        let mut out = keccak256(buf, 64);
 
-    //     for i in 0..20
-    //     {
-    //         buf[i + 12] = address_in_bytes[i];
-    //     }
+        for i in 0..20
+        {
+            buf[i + 12] = address_in_bytes[i];
+        }
 
-    //     for i in 0..32
-    //     {
-    //         buf[i + 32] = out[i];
-    //     }
+        for i in 0..32
+        {
+            buf[i + 32] = out[i];
+        }
 
-    //     keccak256(buf, 64)
-    // };
+        keccak256(buf, 64)
+    };
     
-    // // Keys should match
-    // assert(calculated_registry_key == vote.registry_key_sp.key);
+    // Keys should match
+    assert(calculated_registry_key == vote.registry_key_sp.key);
 
-    // // And value should be what we expect
-    // let pbk_x_bytes = vote.registered_pbk.x.to_be_bytes(32);
-    // for i in 0..32
-    // {
-    //     assert(pbk_x_bytes[i] == vote.registry_key_sp.value[i]);
-    // }
+    // And value should be what we expect
+    let pbk_x_bytes = vote.registered_pbk.x.to_be_bytes(32);
+    for i in 0..32
+    {
+        assert(pbk_x_bytes[i] == vote.registry_key_sp.value[i]);
+    }
 
-    // // Storage proof verification
-    // assert(vote.registry_key_sp.verify_storage_root(u256_conv(vote.registry_account_state)));
+    // Storage proof verification
+    assert(vote.registry_key_sp.verify_storage_root(u256_from_fields(vote.registry_account_state)));
 
-    // // Check NFT ownership
-    // let calculated_nft_key = {
-    //     let mut buf = [0; 64];
+    // Check NFT ownership
+    let calculated_nft_key = {
+        let mut buf = [0; 64];
         
-    //     buf[63] = 3;
-    //     let nft_id_bytes1 = vote.nft_id[0].to_be_bytes(16);
-    //     let nft_id_bytes2 = vote.nft_id[1].to_be_bytes(16);
+        buf[63] = 3;
+        let nft_id_bytes1 = vote.nft_id[0].to_be_bytes(16);
+        let nft_id_bytes2 = vote.nft_id[1].to_be_bytes(16);
         
-    //     for i in 0..16
-    //     {
-    //         buf[i] = nft_id_bytes1[i];
-    //         buf[16 + i] = nft_id_bytes2[i];
-    //     }
+        for i in 0..16
+        {
+            buf[i] = nft_id_bytes1[i];
+            buf[16 + i] = nft_id_bytes2[i];
+        }
 
-    //     keccak256(buf, 64)
-    // };
+        keccak256(buf, 64)
+    };
     
-    // // Keys should match
-    // assert(calculated_nft_key == vote.nft_ownership_proof.key);
+    // Keys should match
+    assert(calculated_nft_key == vote.nft_ownership_proof.key);
 
-    // // And value should be what we expect
-    // for i in 0..12
-    // {
-    //     assert(vote.nft_ownership_proof.value[i] == 0);
-    // }
+    // And value should be what we expect
+    for i in 0..12
+    {
+        assert(vote.nft_ownership_proof.value[i] == 0);
+    }
     
-    // for i in 0..20
-    // {
-    //     assert(vote.nft_ownership_proof.value[12 + i] == address_in_bytes[i]);
-    // }
+    for i in 0..20
+    {
+        assert(vote.nft_ownership_proof.value[12 + i] == address_in_bytes[i]);
+    }
 
-    // // Storage proof verification
-    // assert(vote.nft_ownership_proof.verify_storage_root(u256_conv(vote.nft_account_state)));
+    // Storage proof verification
+    assert(vote.nft_ownership_proof.verify_storage_root(u256_from_fields(vote.nft_account_state)));
 }
 
-fn u256_conv(x: [Field; 2]) -> [u8; 32] // Convert a pair of 128-bit field elements to a 32-byte array
+fn u256_from_fields(x: [Field; 2]) -> [u8; 32] // Convert a pair of 128-bit field elements to a 32-byte array
 {
     let mut out = [0; 32];
     

@@ -3,31 +3,32 @@ use dep::trie::rlp;
 use dep::trie::TrieProof;
 use dep::std::hash::keccak256;
 
-// RLP encoding far too expensive.
-// How about: Submit the full block header in RLP format.
-// Circuit checks:
-// - Data has the right shape
-// - Slot 3 (counting from 0) has the provided state root.
-// Could add parent_hash for extra security.
-
 global MAX_BLOCK_HEADER_SIZE: Field = 630; // Maximum size in bytes. Liberal estimate.
 global MAX_PROOF_SIZE: Field = 4256; // Maximum proof size in bytes for a depth 8 state proof
 global MAX_ACCOUNT_STATE_SIZE: Field = 134; // Including RLP headers
 
 fn main(
-    block_hash: pub [u8; 32],
+    block_hash: pub [Field; 2],
     block_header: [u8; MAX_BLOCK_HEADER_SIZE],
-    state_root: pub [u8; 32],
+    state_root: pub [Field; 2],
     registry_address: pub Field,
     registry_state_proof: TrieProof<20, MAX_PROOF_SIZE, MAX_ACCOUNT_STATE_SIZE>,
-    registry_storage_root: pub [u8; 32],
+    registry_storage_root: pub [Field; 2],
     nft_contract_address: pub Field,
     nft_state_proof: TrieProof<20, MAX_PROOF_SIZE, MAX_ACCOUNT_STATE_SIZE>,
-    nft_storage_root: pub [u8; 32]
+    nft_storage_root: pub [Field; 2]
 )
 {
+
+    // Convert hashes to bytes
+    let block_hash_bytes = u256_from_fields(block_hash);
+    let state_root_bytes = u256_from_fields(state_root);
+    let registry_storage_root_bytes = u256_from_fields(registry_storage_root);
+    let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
+    
     // Check that state root, block header and block hash are consistent
-    // assert(verify_block_hash(block_hash, block_header, state_root));
+    // TODO: Uncomment
+    // assert(verify_block_hash(block_hash_bytes, block_header, state_root_bytes));
 
     // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
     let registry_address_bytes = registry_address.to_be_bytes(20);
@@ -35,9 +36,9 @@ fn main(
     {
         assert(registry_state_proof.key[i] == registry_address_bytes[i]);
     }
-    // assert(registry_state_proof.verify_state_root(state_root));
+    assert(registry_state_proof.verify_state_root(state_root_bytes));
     let registry_account_state = byte_value(registry_state_proof.value).0;
-    assert(verify_account_storage(registry_account_state, registry_storage_root));
+    assert(verify_account_storage(registry_account_state, registry_storage_root_bytes));
 
 
     // Check that NFT contract account is reachable from state root and has the given storage root
@@ -47,11 +48,12 @@ fn main(
         assert(nft_state_proof.key[i] == nft_contract_address_bytes[i]);
     }
     
-    // assert(nft_state_proof.verify_state_root(state_root));
+    assert(nft_state_proof.verify_state_root(state_root_bytes));
     let nft_account_state = byte_value(nft_state_proof.value).0;
-    assert(verify_account_storage(nft_account_state, nft_storage_root));
+    assert(verify_account_storage(nft_account_state, nft_storage_root_bytes));
 }
 
+// Block hash verification assumes Shanghai fork
 fn verify_block_hash<N>(
     block_hash: [u8; 32],
     block_header: [u8; N],
@@ -130,6 +132,22 @@ fn verify_account_storage<N>(
     }
 
     true
+}
+
+fn u256_from_fields(x: [Field; 2]) -> [u8; 32] // Convert a pair of 128-bit field elements to a 32-byte array
+{
+    let mut out = [0; 32];
+    
+    let x_l = x[0].to_be_bytes(16);
+    let x_r = x[1].to_be_bytes(16);
+
+    for i in 0..16
+    {
+        out[i] = x_l[i];
+        out[16 + i] = x_r[i];
+    }
+
+    out
 }
 
 #[test]

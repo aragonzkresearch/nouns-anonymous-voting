@@ -213,7 +213,10 @@ impl TomlSerializable for BBJJ_Ec {
 
 impl TomlSerializable for H256 {
     fn toml(self) -> Value {
-        <[u8; 32]>::from(self).to_vec().toml()
+        let self_bytes = <[u8; 32]>::from(self);
+        let self_l = BN254_Fr::from_be_bytes_mod_order(&self_bytes[0..16]);
+        let self_r = BN254_Fr::from_be_bytes_mod_order(&self_bytes[16..]);
+        vec![self_l, self_r].toml()
     }
 }
 
