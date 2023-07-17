@@ -15,4 +15,8 @@ clap = { version = "4.3.3", features = ["derive", "cargo", "env"] }
 
 nouns-protocol = { path = "../nouns-protocol"}
 toml = "0.7.6"
+indicatif = "0.17.5"
+futures = "0.3.28"
+console = "0.15.7"
+ark-ff = "0.4.2"
 

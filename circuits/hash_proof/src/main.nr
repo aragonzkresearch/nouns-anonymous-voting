@@ -19,7 +19,6 @@ fn main(
     nft_storage_root: pub [Field; 2]
 )
 {
-
     // Convert hashes to bytes
     let block_hash_bytes = u256_from_fields(block_hash);
     let state_root_bytes = u256_from_fields(state_root);
@@ -27,8 +26,7 @@ fn main(
     let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
     
     // Check that state root, block header and block hash are consistent
-    // TODO: Uncomment
-    // assert(verify_block_hash(block_hash_bytes, block_header, state_root_bytes));
+    assert(verify_block_hash(block_hash_bytes, block_header, state_root_bytes));
 
     // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
     let registry_address_bytes = registry_address.to_be_bytes(20);

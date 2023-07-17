@@ -1,5 +1,9 @@
+use ark_ff::{biginteger::BigInteger256 as B256, BigInt, BigInteger, Field, PrimeField};
+use console::Emoji;
 use std::ops::Add;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
+use std::thread;
+
 use std::time::Duration;
 
 use ethers::core::k256::ecdsa::SigningKey;
@@ -11,16 +15,22 @@ use ethers::prelude::{
 };
 use ethers::types::{Bytes, U64};
 
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+
 use nouns_protocol::{
-    wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
+    wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
     Wrapper,
 };
 
 // TODO: Factor out
 use nouns_protocol::noir::toml::TomlSerializable;
 
+use tokio::runtime::Runtime;
+
 use crate::ethereum::storage_proofs::{get_nft_ownership_proof, get_zk_registry_proof};
 use crate::EthersU256;
+
+static SPARKLE: Emoji<'_, '_> = Emoji("✨ ", ":-)");
 
 abigen!(
     ZKRegistry,
@@ -77,18 +87,20 @@ pub async fn reg_key(
     let contract = ZKRegistry::new(zk_registry_address, client);
 
     let bbjj_pbk = bbjj_private_key.public();
+    
     let bbjj_pbk: [U256; 2] = wrap_into!(bbjj_pbk);
 
-    let x_register_request = contract.register(INTERFACE_ID, wrap_into!(bbjj_pbk[0]));
+    let (x_tx_hash, y_tx_hash)
+        = exec_with_progress("Submitting Baby Jubjub public key to registry",
+                             move || {
+                                 let rt = Runtime::new().unwrap();
+                                 rt.block_on( async {
+                                     let x_register_request = contract.register(INTERFACE_ID, wrap_into!(bbjj_pbk[0]));
 
     let x_tx = x_register_request
         .send()
         .await
         .map_err(|e| format!("Error sending X coordinate registration tx {e:?}"))?;
-    println!(
-        "Registered X Part on of the BBJJ Public Key  Interface. Tx Hash: {}",
-        x_tx.tx_hash()
-    );
 
     let y_register_request = contract.register(INTERFACE_ID + 1, wrap_into!(bbjj_pbk[1]));
 
@@ -96,13 +108,11 @@ pub async fn reg_key(
         .send()
         .await
         .map_err(|_e| format!("Error sending Y coordinate registration tx"))?;
+                                     Ok((x_tx.tx_hash(), y_tx.tx_hash()))
+                                 })
+                             })?;
 
-    println!(
-        "Registered Y Part on of the BBJJ Public Key Interface. Tx Hash: {}",
-        y_tx.tx_hash()
-    );
-
-    println!("BBJJ Public Key registered successfully!");
+    println!("Baby Jubjub public key registered successfully (Transaction hashes {} and {})", x_tx_hash, y_tx_hash);
     Ok(())
 }
 
@@ -125,32 +135,48 @@ pub async fn create_process(
     // Before creating process, need to obtain current state and storage roots for the relevant contracts
     // and submit a proof that these are consistent with the current block hash.
 
-    // First fetch current block number, block hash, block header and state root
-    let block_number = eth_connection.get_block_number().await.map_err(|_| format!("Error getting current block number"))?;
-    let block = eth_connection.get_block(block_number).await.map_err(|_| format!("Error obtaining block data"))?.unwrap();
-    let block_hash = block.hash.unwrap();
-    let block_header = proof::header_from_block(&block)?;
-    let state_root = block.state_root;
+    let (block_number, block_hash, block_header, state_root,
+         nouns_token_address, zk_registry_address,
+         zk_registry_state_proof, nouns_token_contract_state_proof,
+         zk_registry_storage_root, nouns_token_contract_storage_root)
+        = exec_with_progress("Fetching data from smart contract",
+                             {
+                                 let nouns_voting = nouns_voting.clone();
+                                 move || {
+                                     let rt = Runtime::new().unwrap();
+                                     rt.block_on( async {
+                                         // First fetch current block number, block hash, block header and state root
+                                         let block_number = eth_connection.get_block_number().await.map_err(|_| format!("Error getting current block number"))?;
+                                         let block = eth_connection.get_block(block_number).await.map_err(|_| format!("Error obtaining block data"))?.unwrap();
+                                         let block_hash = block.hash.unwrap();
+                                         let block_header = proof::header_from_block(&block)?;
+                                         let state_root = block.state_root;
 
-    // Then fetch state proofs and storage hashes of the relevant contracts
-    // First fetch addresses from voting contract
-    let nouns_token_address = nouns_voting.nouns_token().call().await.map_err(|e| {
-        format!("Error getting the NounsToken address from the NounsVoting contract: {e:?}")
-    })?;
+                                         // Then fetch state proofs and storage hashes of the relevant contracts
+                                         // First fetch addresses from voting contract
+                                         let nouns_token_address = nouns_voting.nouns_token().call().await.map_err(|e| {
+                                             format!("Error getting the NounsToken address from the NounsVoting contract: {e:?}")
+                                         })?;
+                                         
+                                         let zk_registry_address = nouns_voting.zk_registry().call().await.map_err(|e| {
+                                             format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
+                                         })?;
+
+                                         
+                                         // Then fetch state proofs
+                                         let zk_registry_state_proof = proof::get_state_proof(&eth_connection, block_number, zk_registry_address).await?;
+                                         let nouns_token_contract_state_proof = proof::get_state_proof(&eth_connection, block_number, nouns_token_address).await?;
+
+                                         // ...and storage roots
+                                         let zk_registry_storage_root = eth_connection.get_proof(zk_registry_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
+                                         let nouns_token_contract_storage_root = eth_connection.get_proof(nouns_token_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
+                                         Ok((block_number, block_hash, block_header, state_root,
+                                             nouns_token_address, zk_registry_address,
+                                             zk_registry_state_proof, nouns_token_contract_state_proof,
+                                             zk_registry_storage_root, nouns_token_contract_storage_root))
+                                     })
+                                 }})?;
     
-    let zk_registry_address = nouns_voting.zk_registry().call().await.map_err(|e| {
-        format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
-    })?;
-
-    
-    // Then fetch state proofs
-    let zk_registry_state_proof = proof::get_state_proof(&eth_connection, block_number, zk_registry_address).await?;
-    let nouns_token_contract_state_proof = proof::get_state_proof(&eth_connection, block_number, nouns_token_address).await?;
-
-    // ...and storage roots
-    let zk_registry_storage_root = eth_connection.get_proof(zk_registry_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
-        let nouns_token_contract_storage_root = eth_connection.get_proof(nouns_token_address, vec![], Some(block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
-
     // Toml serialise
     let mut toml_map = toml::map::Map::new();
 
@@ -165,31 +191,43 @@ pub async fn create_process(
     toml_map.insert("nft_storage_root".to_string(), nouns_token_contract_storage_root.toml());
 
     let prover_toml = toml::Value::Table(toml_map);
-        
+    
     // Plug everything in to hash_verifier circuit
     let circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
 
     let circuit_config_toml = include_str!("../../../circuits/hash_proof/Nargo.toml");
 
-    let proof = nouns_protocol::noir::run_singleton_noir_project(circuit_config_toml, circuit, prover_toml).map_err(|_| "Proof generation failed.")?;
+    let proof = exec_with_progress("Generating hash proof (this might take a while)...",
+                                   || {
+                                       nouns_protocol::noir::run_singleton_noir_project(circuit_config_toml, circuit, prover_toml).map_err(|_| "Proof generation failed.".to_string())
+                                   })?;
+    //    let proof = nouns_protocol::noir::run_singleton_noir_project(circuit_config_toml, circuit, prover_toml).map_err(|_| "Proof generation failed.")?;
     
     // Pass proof together with state root, storage roots and block number along to process creation request,
     // since the remaining public inputs lie (or may be obtained) within the contract itself
 
+    let (tx_hash, process_id) =
+        exec_with_progress("Submitting data to smart contract",
+                           {
+                               move || {
+                                   let rt = Runtime::new().unwrap();
+                                   rt.block_on( async {
     let create_process_request =
         nouns_voting.create_process(process_duration.as_u64(), wrap_into!(wrap_into!(tlcs_pbk)), block_number.as_u64(), state_root.into(), zk_registry_storage_root.into(), nouns_token_contract_storage_root.into(), proof.into());
 
     let tx = create_process_request
         .send()
         .await
-        .map_err(|e| format!("Error sending createProcess tx: {}", e))?;
+                                           .map_err(|e| format!("Error sending createProcess tx: {}", e))?;
+                                       let tx_hash = tx.tx_hash();
 
     let process_id = nouns_voting.next_process_id().call().await.map_err(|e| {
         format!("Error getting the next process id from the NounsVoting contract: {e:?}")
     })? - 1;
+                                   Ok((tx_hash, process_id.to_owned()))
+                                   })}})?;
 
-    println!("Tx Hash: {}", tx.tx_hash());
-    println!("Process created successfully with id: {}.", process_id);
+    println!("{} Process created successfully with ID {} and transaction hash {}.", SPARKLE, process_id, tx_hash);
 
     Ok(())
 }
@@ -239,7 +277,7 @@ pub async fn vote(
         U64::from(start_block_number),
         zk_registry_address,
     )
-    .await?;
+        .await?;
 
     // Check that the storage proof is correct
     let expected_value: [U256; 2] = wrap_into!(bbjj_private_key.public());
@@ -255,7 +293,7 @@ pub async fn vote(
         U64::from(start_block_number),
         nouns_token_address,
     )
-    .await?;
+        .await?;
 
     // Check that the storage proof is correct
     if nft_account_state_proof.value != EthersU256::from_big_endian(&nft_owner.as_bytes()) {
@@ -323,26 +361,32 @@ pub async fn tally(
     let nouns_voting = NounsVoting::new(nouns_voting_address, client.clone());
 
     // Get all the ballots casted in the voting process
-    let process_start_block = nouns_voting
-        .get_start_block(wrap_into!(process_id))
-        .call()
-        .await
-        .map_err(|_| format!("Error getting start block number"))
-        .unwrap();
+    let (ballots, ballot_hash) = exec_with_progress("Fetching ballots from blockchain",
+                                  {
+                                      let nouns_voting = nouns_voting.clone();
+                                      move || {
+                                          let rt = Runtime::new().unwrap();
+                                          rt.block_on( async {
+                                              let process_start_block = nouns_voting
+                                                  .get_start_block(wrap_into!(process_id))
+                                                  .call()
+                                                  .await
+                                                  .map_err(|_| format!("Error getting start block number"))
+                                                  .unwrap();
 
-    let filter = nouns_voting
-        .ballot_cast_filter()
-        .filter
-        .from_block(U64::from(process_start_block));
+                                              let filter = nouns_voting
+                                                  .ballot_cast_filter()
+                                                  .filter
+                                                  .from_block(U64::from(process_start_block));
 
-    let logs = client.get_logs(&filter).await.map_err(|_| {
-        format!(
-            "Error getting the logs for the voting process with id {}",
-            process_id
-        )
-    })?;
+                                              let logs = client.get_logs(&filter).await.map_err(|_| {
+                                                  format!(
+                                                      "Error getting the logs for the voting process with id {}",
+                                                      process_id
+                                                  )
+                                              })?;
 
-    let mut ballots: Vec<TruncatedBallot> = Vec::new();
+                                                  let mut ballots: Vec<TruncatedBallot> = Vec::new();
     for log in logs {
         // Check that the log is of correct form:
         if log.topics.len() != 4 {
@@ -364,8 +408,7 @@ pub async fn tally(
 
         ballots.push(truncated_ballot);
     }
-
-    // Get the ballot hash
+                                                  // Get the ballot hash
     let ballot_hash = nouns_voting
         .get_ballots_hash(wrap_into!(process_id))
         .call()
@@ -375,29 +418,46 @@ pub async fn tally(
 
     let ballot_hash: U256 = wrap_into!(ballot_hash);
 
-    let (tally, proof) = Tallier::tally(
-        ballots,
-        tlcs_prk,
-        wrap_into!(ballot_hash),
-        chain_id,
-        process_id,
-        nouns_voting_address,
+
+                                              Ok((ballots, ballot_hash))
+                                          })}})?;
+
+    let (tally, proof) = exec_with_progress("Computing tally (this might take a while)",
+                                            move || {
+                                                Ok::<_,String>(Tallier::tally(
+                                                    ballots,
+                                                    tlcs_prk,
+                                                    wrap_into!(ballot_hash),
+                                                    chain_id,
+                                                    process_id,
+                                                    nouns_voting_address,
+                                                ))?}
     )?;
 
-    let submit_tally_result_request = nouns_voting.submit_tally_result(
-        wrap_into!(process_id),
-        tally.vote_count.map(|val| EthersU256::from(val)),
-        proof.into(),
-    );
+    let tx_hash = exec_with_progress("Submitting tally to smart contract",
+                                     move || {
+                                         let rt = Runtime::new().unwrap();
+                                         rt.block_on( async {
+                                             
+                                             let submit_tally_result_request = nouns_voting.submit_tally_result(
+                                                 wrap_into!(process_id),
+                                                 tally.vote_count.map(|val| EthersU256::from(val)),
+                                                 proof.into(),
+                                             );
 
-    let tx = submit_tally_result_request
-        .send()
-        .await
-        .map_err(|e| format!("Error sending tally tx: {}", e))?;
+                                             let tx = submit_tally_result_request
+                                                 .send()
+                                                 .await
+                                                 .map_err(|e| format!("Error sending tally tx: {}", e))?;
 
-    println!("Tx Hash: {}", tx.tx_hash());
+                                             Ok(tx.tx_hash())
+                                         }
+                                         )})?;
+
+    println!("Tx Hash: {}", tx_hash);
     println!(
-        "Tally submitted successfully! The result is: Against: {}, For: {}, Abstain: {}",
+        "Tally submitted successfully (transaction hash {})!\nThe results are as follows:\nAgainst: {}, For: {}, Abstain: {}",
+        tx_hash,
         tally.vote_count[0], tally.vote_count[1], tally.vote_count[2]
     );
 
@@ -474,7 +534,8 @@ pub async fn obtain_token_ids_to_vote(
     }
 
     // If balance is zero, but can mint, call mint function for nouns token
-    if balance == EthersU256::zero() && minter == wallet_address {
+//    if balance == EthersU256::zero() && minter == wallet_address {
+    if minter == wallet_address {
         let request = nouns_token.mint();
         let _tx = request.send().await.unwrap();
         balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
@@ -551,8 +612,8 @@ mod test {
 
         let token_ids =
             obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
-                .await
-                .map_err(|e| format!("Error obtaining token ids: {}", e))?;
+            .await
+            .map_err(|e| format!("Error obtaining token ids: {}", e))?;
 
         println!("Token ids: {:?}", token_ids);
 
@@ -603,8 +664,8 @@ mod test {
             vote_choice,
             tlcs_pubk,
         )
-        .await
-        .map_err(|e| format!("Error voting: {}", e))?;
+            .await
+            .map_err(|e| format!("Error voting: {}", e))?;
 
         println!(
             "\nBallot submitted successfully for tokenid {}!\n\n\n",
@@ -625,7 +686,7 @@ mod test {
             nouns_voting,
             process_id,
         )
-        .await?;
+            .await?;
 
         println!(
             "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
@@ -663,8 +724,8 @@ mod test {
             wrap_into!(process_id),
             tlcs_prk.scalar_key(),
         )
-        .await
-        .map_err(|e| format!("Error tallying: {}", e))?;
+            .await
+            .map_err(|e| format!("Error tallying: {}", e))?;
 
         let result = nouns_voting
             .get_tally_result(process_id)
@@ -672,6 +733,27 @@ mod test {
             .await
             .expect("Error getting tally");
         Ok(result)
+    }
+}
+
+fn exec_with_progress<F: FnOnce() -> Result<T, String> + std::marker::Send + 'static, T: std::marker::Send + 'static>(msg: &'static str, f: F) -> Result<T, String>
+{
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        tx.send(f()).unwrap();
+    });
+    
+    let pb = ProgressBar::new(1024);
+    pb.set_style(ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}").unwrap());
+    pb.set_message(msg);
+    
+    loop {
+        if let Ok(x) = rx.try_recv() {
+            return x;
+        }
+        thread::sleep(Duration::from_millis(50));
+        pb.inc(1);
     }
 }
 
@@ -775,7 +857,7 @@ mod proof {
             .as_list::<Vec<u8>>().expect("Error: Invalid RLP encoding")
             .last() // Extract value
             .expect("Error: RLP list empty").clone()
-        ;
+            ;
 
         
         Ok(
@@ -791,7 +873,7 @@ mod proof {
         block: &Block<H256>) -> Result<BlockHeader, String>
     {
         let fork_headsup = "Error: Should be on Shanghai fork.";
-            
+        
         let mut block_header = rlp::RlpStream::new_list(17);
 
         block_header.append(&block.parent_hash);
@@ -814,6 +896,6 @@ mod proof {
 
         Ok(BlockHeader(block_header.out().into()))
     }
-        
-        
+    
+    
 }
