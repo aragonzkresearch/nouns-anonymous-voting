@@ -10,18 +10,22 @@ contract NounsVoting {
 
 
     struct VotingProcess {
+	/// IPFS CID of vote proposal
+	bytes32 ipfsHash; // TODO
 	/// The block number at which the census is taken
-	uint64 referenceBlock;
+	uint64 censusBlock;
+	/// The block number at which the voting process begins
+	uint64 startBlock; // TODO
 	/// The hash of the aforementioned block
         bytes32 blockHash;
         /// The block number at which the voting process will end
         uint64 endBlock;
-	/// State root at reference block
-	bytes32 stateRoot;
 	/// ZK Registry contract storage root at reference block
 	bytes32 zkRegistryStorageRoot;
 	/// Nouns token contract storage root at reference block
 	bytes32 nounsTokenStorageRoot;
+	/// TLCS round number
+	uint64 tlcsRoundNumber;
         /// TLCS public key used to encrypt the votes for later decryption
         uint256[2] tlcsPublicKey;
         /// Value defining unique election state
@@ -37,7 +41,7 @@ contract NounsVoting {
         uint256 votesAbstain;
         /// Indicates whether the voting process has ended
         /// @dev Default value is `false`
-        bool finished; // TODO
+        bool tallied; // TODO
         /// The executable action to be executed after the voting process ends
         ExecutableAction action;
     }
@@ -53,7 +57,7 @@ contract NounsVoting {
         /// @dev Default value is `bytes(0)`
         bytes args;
     }
-
+	
     /// This is emitted when a voter submits a vote
     event BallotCast(uint256 processId, uint256 indexed a_x, uint256 indexed a_y, uint256 indexed b);
 
@@ -105,20 +109,21 @@ contract NounsVoting {
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract. This will be done in a future version.
     /// @return The id of the voting process
     function createProcess(
-        uint64 blockDuration,
-        uint256[2] calldata tlcsPublicKey,
-	uint64 block_number, // TODO: Should be < 256 blocks in the past
-	bytes32 state_root,
-	bytes32 registry_storage_root,
-	bytes32 nft_storage_root,
-	bytes calldata hash_proof
+			   bytes32 ipfsHash,
+			   uint64 startDelay,
+			   uint64 blockDuration,
+			   uint64 tlcsRoundNumber,
+			   uint256[2] calldata tlcsPublicKey,
+			   uint64 census_block_number, // TODO: Should be < 256 blocks in the past
+			   bytes32 registry_storage_root,
+			   bytes32 nft_storage_root,
+			   bytes calldata hash_proof
     ) public returns (uint256) {
 
-	bytes32 block_hash = blockhash(block_number); // This will be zero if we're out of range, but then the proof will fail to pass.
+	bytes32 census_block_hash = blockhash(census_block_number); // This will be zero if we're out of range, but then the proof will fail to pass.
 
 	// Form verifier argument
-	_push_u256(block_hash);
-	_push_u256(state_root);
+	_push_u256(census_block_hash);
 	_push_address(address(zkRegistry));
 	_push_u256(registry_storage_root);
 	_push_address(address(nounsToken));
@@ -132,11 +137,13 @@ contract NounsVoting {
         bytes memory emptyBytes = bytes("");
 
         return createProcessWithExecutableAction(
+						 ipfsHash,
+						 startDelay,
             blockDuration,
+						 tlcsRoundNumber,
             tlcsPublicKey,
-	    block_number,
-	    block_hash,
-	    state_root,
+	    census_block_number,
+	    census_block_hash,
 	    registry_storage_root,
 	    nft_storage_root,
             address(0),
@@ -156,11 +163,13 @@ contract NounsVoting {
     /// @notice To make the voting process secure, instead of using the storage roots directly, we should use the block hash obtained inside the contract
     /// @return The id of the voting process
     function createProcessWithExecutableAction(
+					       bytes32 ipfsHash,
+					       uint64 startDelay,
         uint64 blockDuration,
+					       uint64 tlcsRoundNumber,
         uint256[2] calldata tlcsPublicKey,
-	uint64 block_number,
-	bytes32 block_hash,
-	bytes32 state_root,
+	uint64 census_block_number,
+	bytes32 census_block_hash,
 	bytes32 registry_storage_root,
 	bytes32 nft_storage_root,
         address target,
@@ -178,18 +187,20 @@ contract NounsVoting {
         });
 
         votingProcesses[nextProcessId] = VotingProcess({
-            referenceBlock: block_number,
-	    blockHash: block_hash,
-            endBlock: uint64(block.number) + blockDuration,
-	    stateRoot: state_root,
+	    ipfsHash: ipfsHash,
+            censusBlock: census_block_number,
+	    startBlock: uint64(block.number) + startDelay,
+	    blockHash: census_block_hash,
+            endBlock: uint64(block.number) + startDelay + blockDuration,
 	    zkRegistryStorageRoot: registry_storage_root,
 	    nounsTokenStorageRoot: nft_storage_root,
+	    tlcsRoundNumber: tlcsRoundNumber,
             tlcsPublicKey: tlcsPublicKey,
             ballotsHash: 0,
             votesFor: 0,
             votesAgainst: 0,
             votesAbstain: 0,
-            finished: false,
+            tallied: false,
             action: action
         });
 
@@ -216,14 +227,17 @@ contract NounsVoting {
         bytes calldata proof
     ) public {
 
-	// Check whether user has already voted
-	require(!nullifiers[n], "User has already voted");
-
         // Check that the voting process exists
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
 
+	// Check whether voting process has begun
+	require(block.number >= votingProcesses[processId].startBlock, "Voting process has ended");
+	
         // Check that the voting process has not ended
         require(votingProcesses[processId].endBlock > block.number, "Voting process has ended");
+
+	// Check whether user has already voted
+	require(!nullifiers[n], "User has already voted");
 
         // Get the process data
         VotingProcess storage process = votingProcesses[processId];
@@ -274,8 +288,8 @@ contract NounsVoting {
         // Check that the voting process has ended
         require(votingProcesses[processId].endBlock <= block.number, "Voting process has not ended");
 
-        // Check that the voting process has not finished
-        require(!votingProcesses[processId].finished, "Voting process has finished"); // TODO
+        // Check that the voting process has not already been tallied
+        require(!votingProcesses[processId].tallied, "Votes have already been tallied"); // TODO
 
         // Get the process data
         VotingProcess storage process = votingProcesses[processId];
@@ -297,7 +311,7 @@ contract NounsVoting {
         process.votesFor = votesFor;
         process.votesAgainst = votesAgainst;
         process.votesAbstain = votesAbstain;
-        process.finished = true;
+        process.tallied = true;
 
         // If the voting process was successful, execute the action
         if (votesFor > votesAgainst && process.action.target != address(0)) {
@@ -314,15 +328,28 @@ contract NounsVoting {
         }
 
     }
-
+    
+    /// @notice This function returns the IPFS CID of the proposal
+    /// @param processId The id of the voting process
+    /// @return IPFS CID of proposal
+    function getIpfsHash(uint256 processId) public view returns (bytes32) { // TODO
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].ipfsHash;
+    }
+    /// @notice This function returns the block number when the census was taken
+    /// @param processId The id of the voting process
+    /// @return The block number when the census was taken
+    function getCensusBlock(uint256 processId) public view returns (uint64) { // TODO
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].censusBlock;
+    }
     /// @notice This function returns the block number when the voting process started
     /// @param processId The id of the voting process
     /// @return The block number when the voting process started
-    function getStartBlock(uint256 processId) public view returns (uint64) { // TODO
+    function getStartBlock(uint256 processId) public view returns (uint64) {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
-        return votingProcesses[processId].referenceBlock;
+        return votingProcesses[processId].startBlock;
     }
-
     /// @notice This function returns the block number when the voting process ends
     /// @param processId The id of the voting process
     /// @return The block number when the voting process ends
@@ -330,7 +357,13 @@ contract NounsVoting {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
         return votingProcesses[processId].endBlock;
     }
-
+    /// @notice This function returns the TLCS round number of the voting process
+    /// @param processId The id of the voting process
+    /// @return The TLCS round number of the voting process
+    function getTlcsRoundNumber(uint256 processId) public view returns (uint64) {
+        require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
+        return votingProcesses[processId].tlcsRoundNumber;
+    }
     /// @notice This function returns the ballot hash of the voting process
     /// @param processId The id of the voting process
     /// @return The ballot hash of the voting process
@@ -344,7 +377,7 @@ contract NounsVoting {
     /// @return The result of the voting process as a tuple of votes against, for and abstaining from voting
     function getTallyResult(uint256 processId) public view returns (uint256[3] memory) {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
-        require(votingProcesses[processId].finished, "Voting process has not finished");
+        require(votingProcesses[processId].tallied, "Votes have not been tallied yet");
         return [
             votingProcesses[processId].votesAgainst,
             votingProcesses[processId].votesFor,
@@ -400,7 +433,7 @@ contract NounsVoting {
 	_push_uint256(ballotsHash);
 	_push_uint256(processId);
 	_push_address(address(this));
-	_push_uint256(block.chainid);
+	_push_u256(bytes32(block.chainid));
 	_push_uint256(votesAgainst);
 	_push_uint256(votesFor);
 	_push_uint256(votesAbstain);

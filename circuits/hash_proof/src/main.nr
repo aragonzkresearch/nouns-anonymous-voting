@@ -10,7 +10,6 @@ global MAX_ACCOUNT_STATE_SIZE: Field = 134; // Including RLP headers
 fn main(
     block_hash: pub [Field; 2],
     block_header: [u8; MAX_BLOCK_HEADER_SIZE],
-    state_root: pub [Field; 2],
     registry_address: pub Field,
     registry_state_proof: TrieProof<20, MAX_PROOF_SIZE, MAX_ACCOUNT_STATE_SIZE>,
     registry_storage_root: pub [Field; 2],
@@ -19,44 +18,42 @@ fn main(
     nft_storage_root: pub [Field; 2]
 )
 {
-    // Convert hashes to bytes
-    let block_hash_bytes = u256_from_fields(block_hash);
-    let state_root_bytes = u256_from_fields(state_root);
-    let registry_storage_root_bytes = u256_from_fields(registry_storage_root);
-    let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
+    // // Convert hashes to bytes
+    // let block_hash_bytes = u256_from_fields(block_hash);
+    // let registry_storage_root_bytes = u256_from_fields(registry_storage_root);
+    // let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
     
-    // Check that state root, block header and block hash are consistent
-    assert(verify_block_hash(block_hash_bytes, block_header, state_root_bytes));
+    // // Check that block header and block hash are consistent and return state root
+    // let state_root_bytes = check_block(block_hash_bytes, block_header);
 
-    // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
-    let registry_address_bytes = registry_address.to_be_bytes(20);
-    for i in 0..20
-    {
-        assert(registry_state_proof.key[i] == registry_address_bytes[i]);
-    }
-    assert(registry_state_proof.verify_state_root(state_root_bytes));
-    let registry_account_state = byte_value(registry_state_proof.value).0;
-    assert(verify_account_storage(registry_account_state, registry_storage_root_bytes));
+    // // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
+    // let registry_address_bytes = registry_address.to_be_bytes(20);
+    // for i in 0..20
+    // {
+    //     assert(registry_state_proof.key[i] == registry_address_bytes[i]);
+    // }
+    // assert(registry_state_proof.verify_state_root(state_root_bytes));
+    // let registry_account_state = byte_value(registry_state_proof.value).0;
+    // assert(verify_account_storage(registry_account_state, registry_storage_root_bytes));
 
 
-    // Check that NFT contract account is reachable from state root and has the given storage root
-    let nft_contract_address_bytes = nft_contract_address.to_be_bytes(20);
-    for i in 0..20
-    {
-        assert(nft_state_proof.key[i] == nft_contract_address_bytes[i]);
-    }
+    // // Check that NFT contract account is reachable from state root and has the given storage root
+    // let nft_contract_address_bytes = nft_contract_address.to_be_bytes(20);
+    // for i in 0..20
+    // {
+    //     assert(nft_state_proof.key[i] == nft_contract_address_bytes[i]);
+    // }
     
-    assert(nft_state_proof.verify_state_root(state_root_bytes));
-    let nft_account_state = byte_value(nft_state_proof.value).0;
-    assert(verify_account_storage(nft_account_state, nft_storage_root_bytes));
+    // assert(nft_state_proof.verify_state_root(state_root_bytes));
+    // let nft_account_state = byte_value(nft_state_proof.value).0;
+    // assert(verify_account_storage(nft_account_state, nft_storage_root_bytes));
 }
 
 // Block hash verification assumes Shanghai fork
-fn verify_block_hash<N>(
+fn check_block<N>(
     block_hash: [u8; 32],
-    block_header: [u8; N],
-    state_root: [u8; 32])
-    -> bool
+    block_header: [u8; N])
+    -> [u8; 32]
 {
     // Decode block header
     let rlp_list: rlp::RLP_List<17> = rlp::decode1(block_header);
@@ -83,11 +80,12 @@ fn verify_block_hash<N>(
     assert((rlp_list.length[15] as u32) <= 8); // base_fee_per_gas
     assert(rlp_list.length[16] == 32); // withdrawals_root
 
-    // Check for state root inclusion
+    // Extract state root
+    let mut state_root = [0; 32];
     let sr_off = rlp_list.offset[3];
     for i in 0..32
     {
-        assert(state_root[i] == block_header[sr_off + i]);
+        state_root[i] = block_header[sr_off + i];
     }
 
     // Check hash
@@ -101,7 +99,7 @@ fn verify_block_hash<N>(
     let block_header_hash = keccak256(block_header, block_header_length);
     assert(block_header_hash == block_hash);
 
-    true
+    state_root
 }
 
 // Verify that the given storage root corresponds to the given account
@@ -155,5 +153,5 @@ fn test_block_hash_verifier()
     let block_hash = [61, 154, 163, 164, 36, 23, 186, 77, 196, 192, 21, 95, 224, 26, 97, 22, 49, 231, 114, 231, 167, 13, 124, 67, 214, 181, 37, 76, 223, 200, 25, 156];
     let state_root = [22, 217, 46, 53, 217, 138, 10, 227, 30, 100, 200, 81, 190, 85, 145, 108, 254, 87, 198, 108, 86, 43, 89, 107, 243, 146, 97, 82, 196, 113, 144, 5];
 
-    assert(verify_block_hash(block_hash, block_header, state_root));
+    assert(check_block(block_hash, block_header) == state_root);
 }

@@ -47,8 +47,9 @@ process in the future.
 
 For that, you need to provide the following information:
 
-1. The TLCS Public Encryption Key that will be used to encrypt the votes. You should get this from the TLCS server.
-2. The duration of the voting process. This can be provided in minutes, hours and days.
+1. The IPFS address of the proposal (raw binary format; sha2-256 hash).
+2. The delay period of the voting process, which may be expressed in minutes, hours or days. If this argument is omitted, it is assumed to be 0.
+3. The duration of the voting process, also expressed in minutes, hours or days.
 
 _**Note** You will need an account that has at least one Nouns to participate in the voting process. If you are running
 in a local test network, you can mint a Nouns to your account by running `cargo run --bin premint_nouns`
@@ -57,13 +58,13 @@ command._
 1. To create a process with duration of 1 day:
 
 ```bash
-    nouns-cli create-process -d 1d -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli create-process -h -d 1d
 ```
 
-2. To create a process with duration of 10 hours:
+2. To create a process with duration of 10 hours and a delay period of 1 hour:
 
 ```bash
-    nouns-cli create-process -d 10h -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli create-process -h  -s 1h -d 10h
 ```
 
 ### Vote
@@ -75,30 +76,26 @@ As part of the vote, you need to provide the following information:
 1. The process ID of the process you want to vote in.
 2. The NFT Index of the noun you want to vote for.
 3. The Registry Private Key of the Account you want to vote with.
-4. The TLCS Public Encryption Key that will be used to encrypt the vote. You should get this from the TLCS server.
-5. The Vote Option you want to vote for. This can be either `Yes`, `No` or `Abstain`.
+4. The Vote Option you want to vote for. This can be either `Yes`, `No` or `Abstain`.
 
 _**Note:** make sure that the NFT indeed exists in the Nouns Token contract._
 
 ```bash
-    nouns-cli vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y -t '234056D968BAF183FE8D237D496D1C04188220CD33E8F8D14DF9B84479736B20,2624393FAD9B71C04B3B14D8AC45202DBB4EAFF4C2D1350C9453FC08D18651FE'
+    nouns-cli vote -p 0 -n 0 -k 043c3780cb30f913d1c34d80437f7c61c973461595986e899ee6a8171143db1d -v y
 ```
 
 ### Tally
 
 This function is used to tally the votes in a process.
 
-As part of the tally, you need to provide the following information:
-
-1. The process ID of the process you want to tally.
-2. The TLCS private key that will be used to decrypt the votes. You should get this from the TLCS server.
+For the tally, all you need to private is the process ID of the voting process you wish to tally.
 
 **Note** That you can only run this command after the voting process has ended. If you are working on a local test net,
 you can mine these blocks by running `cargo run --bin mine_blocks` command. Note that 1 block is counted as 12
 seconds.
 
 ```bash
-    nouns-cli tally -p 0 -t 059D6B0FE7AD950D220261FE28B7C8B514E3B06D8EBC17179C469120A366B8C9
+    nouns-cli tally -p 0
 ```
 
 

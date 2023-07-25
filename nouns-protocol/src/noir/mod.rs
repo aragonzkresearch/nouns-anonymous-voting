@@ -83,70 +83,24 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
 
 #[cfg(not(feature = "mock-prover"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
-    // let num_voters = input.k.len();
-    // assert!(
-    //     num_voters <= 256,
-    //     "Support for more than 256 voters coming soon™"
-    // );
+    let mut tally_circuit = "\
+    global MAX_VOTERS: Field = 16;
 
-    // let nearest_power_of_two = [16, 256]
-    //     .into_iter()
-    //     .filter(|x| x >= &num_voters)
-    //     .next()
-    //     .unwrap();
+    fn main(b_k: pub Field, process_id: pub Field, contract_addr: pub Field, chain_id: pub [Field; 2], vote_count: pub [Field; 3], num_voters: Field, k_x: [Field; MAX_VOTERS], k_y: [Field; MAX_VOTERS], v: [Field; MAX_VOTERS])
+{
+    assert(verify_tally(b_k, process_id, contract_addr, chain_id, vote_count, num_voters, k_x, k_y, v));
+}
 
-    // let vote_prover_dir = format!("../circuits/{}_voters", nearest_power_of_two);
+".to_string();
+    tally_circuit.push_str(include_str!("../../../circuits/tally/src/lib.nr"));
+    let tally_circuit_config_toml = "[package]
+authors = []
 
-    // // Serialize the input into a toml string
-    // let prover_input = self::toml::TomlSerializable::toml(input);
-
-    // let prover_input = prover_input
-    //     .as_table()
-    //     .map_or(Err("Failed to serialize input to toml!".to_string()), |t| {
-    //         Ok(t)
-    //     })?;
-
-    // let prover_input_as_string = ::toml::to_string_pretty(&prover_input)
-    //     .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
-
-    // // Save the input to a file for the prover to read
-    // let file_path = format!("{}/Prover.toml", vote_prover_dir);
-    // // If the file does not exist, create it
-    // if !std::path::Path::new(&file_path).exists() {
-    //     std::fs::File::create(&file_path)
-    //         .map_err(|e| format!("Failed to create input file! Error: {}", e.to_string()))?;
-    // }
-    // std::fs::write(file_path, prover_input_as_string)
-    //     .map_err(|e| format!("Failed to write input to file! Error: {}", e.to_string()))?;
-
-    // // Run the prover as a shell command `noir prove` in a `noir` subdirectory
-    // let output = std::process::Command::new("nargo")
-    //     .current_dir(vote_prover_dir.clone())
-    //     .arg("prove")
-    //     .arg("p")
-    //     .output()
-    //     .map_err(|e| format!("Failed to run noir prover! Error: {}", e.to_string()))?;
-
-    // // Check if the prover succeeded
-    // if !output.status.success() {
-    //     return Err(format!(
-    //         "Noir prover failed! Error: {}",
-    //         String::from_utf8(output.stderr).unwrap()
-    //     ));
-    // }
-
-    // // Read the proof from the file
-    // let proof = std::fs::read(vote_prover_dir.to_owned() + "/proofs/p.proof")
-    //     .map_err(|e| format!("Failed to read proof from file! Error: {}", e.to_string()))?;
-
-    // Ok(proof)
-
-    let tally_circuit = include_str!("../../../circuits/16_voters/src/main.nr");
-    let tally_circuit_config_toml = include_str!("../../../circuits/16_voters/Nargo.toml");
+[dependencies]";
 
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(tally_circuit_config_toml, tally_circuit, prover_input).expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input).expect("Error: Failed to generate proof.");
 
     Ok(proof)
 }
@@ -172,7 +126,7 @@ pub fn run_singleton_noir_project(circuit_config_toml: &str, circuit: &str, prov
     
     proof_string.pop(); // Pop off newline
     let proof = hex::decode(proof_string).expect("Error decoding proof string");
-
+    
     Ok(proof)
 }
 

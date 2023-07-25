@@ -88,17 +88,18 @@ async fn main() {
         CliCommand::RegKey(bbjj_private_key) => {
             reg_key(client, global_param.contract_address, bbjj_private_key).await
         }
-        CliCommand::CreateProcess(process_duration, tlcs_pbk) => {
+        CliCommand::CreateProcess(ipfs_hash, start_delay, process_duration) => {
             create_process(
                 client,
                 eth_connection,
                 global_param.contract_address,
+                ipfs_hash,
+                start_delay,
                 process_duration,
-                tlcs_pbk,
             )
             .await
         }
-        CliCommand::Vote(process_id, nft_id, bbjj_private_key, vote_choice, tlcs_pbk) => {
+        CliCommand::Vote(process_id, nft_id, bbjj_private_key, vote_choice) => {
             vote(
                 client,
                 eth_connection,
@@ -108,17 +109,15 @@ async fn main() {
                 wrap_into!(chain_id),
                 bbjj_private_key,
                 vote_choice,
-                tlcs_pbk,
             )
             .await
         }
-        CliCommand::Tally(process_id, tlcs_prk) => {
+        CliCommand::Tally(process_id) => {
             tally(
                 client,
                 global_param.contract_address,
                 wrap_into!(chain_id),
                 process_id,
-                tlcs_prk,
             )
             .await
         }
