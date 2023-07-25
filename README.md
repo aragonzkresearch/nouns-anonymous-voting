@@ -47,7 +47,7 @@ process in the future.
 
 For that, you need to provide the following information:
 
-1. The IPFS address of the proposal (raw binary format; sha2-256 hash).
+1. The IPFS address of the proposal (raw binary codec; sha2-256 hash).
 2. The delay period of the voting process, which may be expressed in minutes, hours or days. If this argument is omitted, it is assumed to be 0.
 3. The duration of the voting process, also expressed in minutes, hours or days.
 
@@ -58,13 +58,13 @@ command._
 1. To create a process with duration of 1 day:
 
 ```bash
-    nouns-cli create-process -h -d 1d
+    nouns-cli create-process -i bafkreidfgllkxpigujgbavuq5kxdd5yo2jid3abzuxhwj7l6socllnd3m4 -d 1d
 ```
 
 2. To create a process with duration of 10 hours and a delay period of 1 hour:
 
 ```bash
-    nouns-cli create-process -h  -s 1h -d 10h
+    nouns-cli create-process -i bafkreidfgllkxpigujgbavuq5kxdd5yo2jid3abzuxhwj7l6socllnd3m4 -s 1h -d 10h
 ```
 
 ### Vote

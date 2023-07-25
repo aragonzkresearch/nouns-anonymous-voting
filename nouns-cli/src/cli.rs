@@ -209,7 +209,7 @@ fn command_constructor() -> Command {
                 )
                 .arg(
                     Arg::new("ipfs-hash")
-                        .short('h')
+                        .short('i')
                         .long("ipfs-hash")
                         .help("IPFS CIDv1 hash (raw binary codec using sha2-256 hash) associated with voting process")
                         .help("Example: bafkreidfgllkxpigujgbavuq5kxdd5yo2jid3abzuxhwj7l6socllnd3m4")
