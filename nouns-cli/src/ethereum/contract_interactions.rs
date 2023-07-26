@@ -15,10 +15,10 @@ use ethers::prelude::{
 };
 use ethers::types::{H256, U64};
 
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use nouns_protocol::{
-    wrap, wrap_into, BBJJ_Ec, BBJJ_Fr, BN254_Fr, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
+    wrap, wrap_into, PrivateKey, Tallier, TruncatedBallot, VoteChoice, Voter,
     Wrapper,
 };
 
@@ -27,7 +27,7 @@ use nouns_protocol::noir::toml::TomlSerializable;
 
 use tokio::runtime::Runtime;
 
-use crate::ethereum::storage_proofs::{get_nft_ownership_proof, get_zk_registry_proof};
+use crate::ethereum::proofs;
 use crate::EthersU256;
 
 static SPARKLE: Emoji<'_, '_> = Emoji("✨ ", ":-)");
@@ -156,7 +156,7 @@ pub async fn create_process(
                                          let census_block_number = eth_connection.get_block_number().await.map_err(|_| format!("Error getting current block number"))?;
                                          let block = eth_connection.get_block(census_block_number).await.map_err(|_| format!("Error obtaining block data"))?.unwrap();
                                          let block_hash = block.hash.unwrap();
-                                         let block_header = proof::header_from_block(&block)?;
+                                         let block_header = proofs::header_from_block(&block)?;
 
                                          // Then fetch state proofs and storage hashes of the relevant contracts
                                          // First fetch addresses from voting contract
@@ -170,8 +170,8 @@ pub async fn create_process(
 
                                          
                                          // Then fetch state proofs
-                                         let zk_registry_state_proof = proof::get_state_proof(&eth_connection, census_block_number, zk_registry_address).await?;
-                                         let nouns_token_contract_state_proof = proof::get_state_proof(&eth_connection, census_block_number, nouns_token_address).await?;
+                                         let zk_registry_state_proof = proofs::get_state_proof(&eth_connection, census_block_number, zk_registry_address).await?;
+                                         let nouns_token_contract_state_proof = proofs::get_state_proof(&eth_connection, census_block_number, nouns_token_address).await?;
 
                                          // ...and storage roots
                                          let zk_registry_storage_root = eth_connection.get_proof(zk_registry_address, vec![], Some(census_block_number.into())).await.map_err(|_| "Error fetching storage root")?.storage_hash;
@@ -343,7 +343,7 @@ pub async fn vote(
                                              format!("Error getting the ZKRegistry address from the NounsVoting contract: {e:?}")
                                          })?;
 
-                                         let (registry_account_state_hash, registry_account_state_proof_x) = get_zk_registry_proof(
+                                         let (registry_account_state_hash, registry_account_state_proof_x) = proofs::get_zk_registry_proof(
                                              &eth_connection,
                                              nft_owner,
                                              U64::from(census_block_number),
@@ -360,7 +360,7 @@ pub async fn vote(
                                              ));
                                          }
 
-                                         let (nft_account_state_hash, nft_account_state_proof) = get_nft_ownership_proof(
+                                         let (nft_account_state_hash, nft_account_state_proof) = proofs::get_nft_ownership_proof(
                                              eth_connection,
                                              wrap_into!(nft_id),
                                              U64::from(census_block_number),
@@ -859,149 +859,6 @@ fn exec_with_progress<F: FnOnce() -> Result<T, String> + std::marker::Send + 'st
         thread::sleep(Duration::from_millis(50));
         pb.inc(1);
     }
-}
-
-// TODO: Move and combine with storage_proofs
-mod proof {
-    use ethers::types::{Address, Block, Bytes, H256, U64};
-    use ethers::prelude::{Http, Middleware, Provider};
-    use ethers::utils::rlp;
-
-    use nouns_protocol::noir;
-
-    use toml;
-    
-    #[derive(Debug, Default, Clone, PartialEq, Eq)]
-    pub struct StateProof {
-        pub key: Address,
-        pub proof: Vec<Bytes>,
-        pub value: Vec<u8>,
-    }
-
-    impl noir::toml::TomlSerializable for StateProof {
-        fn toml(self) -> toml::Value {
-            let mut map = toml::map::Map::new();
-            let depth = self.proof.len();
-
-            let path = self
-                .proof
-                .into_iter()
-                .map(|b| b.to_vec())
-                .collect::<Vec<_>>();
-
-            // Proof path needs to be an appropriately padded flat array.
-            let padded_path = path
-                .into_iter()
-                .chain({
-                    let depth_excess = noir::MAX_DEPTH - depth;
-                    // Append with empty nodes to fill up to depth MAX_DEPTH
-                    vec![vec![]; depth_excess]
-                })
-                .map(|mut v| {
-                    let node_len = v.len();
-                    let len_excess = noir::MAX_NODE_LEN - node_len;
-                    // Then pad each node up to length MAX_NODE_LEN
-                    v.append(&mut vec![0; len_excess]);
-                    v
-                })
-                .flatten()
-                .collect::<Vec<u8>>(); // And flatten.
-            map.insert("proof".to_string(), padded_path.toml());
-
-            let key: [u8; 20] = self.key.into();
-
-            let value_len = self.value.len();
-
-            assert!(value_len <= noir::MAX_ACCOUNT_STATE_SIZE);
-
-            let mut value = vec![0u8; noir::MAX_ACCOUNT_STATE_SIZE - value_len];
-            
-            value.append(&mut self.value.clone());
-
-            map.insert("key".to_string(), key.to_vec().toml());
-            map.insert("value".to_string(), value.toml());
-            map.insert("depth".to_string(), depth.toml());
-
-            toml::Value::Table(map)
-
-        }
-    }
-
-    impl noir::toml::TomlSerializable for BlockHeader {
-        fn toml(self) -> toml::Value {
-            let mut value = self.0.clone();
-            let value_len = value.len();
-            assert!(value_len <= noir::MAX_BLOCK_HEADER_SIZE);
-            value.append(&mut vec![0; noir::MAX_BLOCK_HEADER_SIZE - value_len]);
-
-            value.toml()
-        }
-    }
-
-    #[derive(Debug, Default, Clone, PartialEq, Eq)]
-    pub struct BlockHeader(Vec<u8>);
-
-    pub(crate) async fn get_state_proof(
-        eth_connection: &Provider<Http>,
-        block_number: U64,
-        address: Address)
-        -> Result<StateProof, String>
-    {
-        // Call eth_getProof
-        let proof_data = eth_connection.get_proof(address, vec![], Some(block_number.into())).await.expect("Error getting state proof");
-
-        // Form proof in the form of a path
-        let proof = proof_data.account_proof;
-
-        // Extract value in RLP form
-        // TODO: Integrity check
-        let value = rlp::Rlp::new(
-            proof.last() // Terminal proof node
-                .expect("Error: State proof empty")) // Proof should have been non-empty
-            .as_list::<Vec<u8>>().expect("Error: Invalid RLP encoding")
-            .last() // Extract value
-            .expect("Error: RLP list empty").clone()
-            ;
-
-        
-        Ok(
-            StateProof {
-                key: address,
-                proof,
-                value
-            }
-        )
-    }
-
-    pub(crate) fn header_from_block(
-        block: &Block<H256>) -> Result<BlockHeader, String>
-    {
-        let fork_headsup = "Error: Should be on Shanghai fork.";
-        
-        let mut block_header = rlp::RlpStream::new_list(17);
-
-        block_header.append(&block.parent_hash);
-        block_header.append(&block.uncles_hash);
-        block_header.append(&block.author.unwrap());
-        block_header.append(&block.state_root);
-        block_header.append(&block.transactions_root);
-        block_header.append(&block.receipts_root);
-        block_header.append(&block.logs_bloom.unwrap());
-        block_header.append(&block.difficulty);
-        block_header.append(&block.number.unwrap());
-        block_header.append(&block.gas_limit);
-        block_header.append(&block.gas_used);
-        block_header.append(&block.timestamp);
-        block_header.append(&block.extra_data.as_ref()); // ...
-        block_header.append(&block.mix_hash.unwrap());
-        block_header.append(&block.nonce.unwrap());
-        block_header.append(&block.base_fee_per_gas.expect(fork_headsup));
-        block_header.append(&block.withdrawals_root.expect(fork_headsup));
-
-        Ok(BlockHeader(block_header.out().into()))
-    }
-    
-    
 }
 
 pub(crate) mod tlcs

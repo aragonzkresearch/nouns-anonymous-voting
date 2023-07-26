@@ -1,4 +1,5 @@
 use strum_macros::EnumIter;
+use ethers::types::{Address, Block, Bytes, H256, U64};
 
 use crate::BN254_Fr;
 
@@ -6,6 +7,18 @@ use crate::BN254_Fr;
 pub(crate) mod mock;
 
 pub(crate) mod wrapper;
+
+// Type for state proofs
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct StateProof {
+    pub key: Address,
+    pub proof: Vec<Bytes>,
+    pub value: Vec<u8>,
+}
+
+// Wrapper for block header
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct BlockHeader(pub Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum VoteChoice {

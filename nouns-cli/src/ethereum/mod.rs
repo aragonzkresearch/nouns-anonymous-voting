@@ -8,7 +8,7 @@ use ethers::prelude::{
 };
 
 pub mod contract_interactions;
-pub(crate) mod storage_proofs;
+pub(crate) mod proofs;
 
 pub async fn setup_connection(
     tx_private_key: String,
