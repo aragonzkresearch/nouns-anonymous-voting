@@ -1,7 +1,7 @@
 use babyjubjub_ark::Signature;
-use ethers::types::StorageProof;
+use ethers::types::{Address, H256, StorageProof};
 
-use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BlockHeader, BN254_Fr, StateProof};
 
 pub mod toml;
 
@@ -17,6 +17,17 @@ pub const MAX_BLOCK_HEADER_SIZE: usize = 630;
 // The maximum byte length of a node
 pub const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
+/// Input to the Noir block hash checker
+pub struct BlockHashVerifierInput {
+    pub block_hash: H256,
+    pub block_header: BlockHeader,
+    pub registry_address: Address,
+    pub registry_state_proof: StateProof,
+    pub registry_storage_root: H256,
+    pub nft_contract_address: Address,
+    pub nft_state_proof: StateProof,
+    pub nft_storage_root: H256
+}
 /// The input to the Noir Vote Prover Circuit
 pub(crate) struct VoteProverInput {
     // Public input for the circuit
@@ -60,12 +71,24 @@ pub(crate) struct TallyProverInput {
     pub(crate) v: Vec<VoteChoice>,
 }
 
+#[cfg(not(feature = "mock-prover"))]
+pub fn prove_block_hash(input: BlockHashVerifierInput) -> Result<Vec<u8>, String> {
+    let voter_circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
+    let voter_circuit_config_toml = include_str!("../../../circuits/hash_proof/Nargo.toml");
+
+    // Serialize the input into a toml string
+    let prover_input = self::toml::TomlSerializable::toml(input);
+
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).expect("Error: Failed to generate proof.");
+
+    Ok(proof)
+}
+
 /// Generates a proof for a vote
 ///
-/// NOTE: This function is currently reliant on the prover being run in the root of the repo
-/// This function is incompatible with the Browser.
+/// Note: This function is incompatible with the browser.
 ///
-/// Furthermore, the function makes use of the Filesystem and Shell.
+/// Furthermore, the function makes use of the filesystem and shell.
 /// For the future, we should consider using a Rust Library implementation of the Noir Prover
 /// When such a library is available, we can remove the dependency on the filesystem and shell
 #[cfg(not(feature = "mock-prover"))]

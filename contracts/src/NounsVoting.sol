@@ -231,7 +231,7 @@ contract NounsVoting {
         require(votingProcesses[processId].endBlock != 0, "Voting process does not exist");
 
 	// Check whether voting process has begun
-	require(block.number >= votingProcesses[processId].startBlock, "Voting process has ended");
+	require(block.number >= votingProcesses[processId].startBlock, "Voting process has not started");
 	
         // Check that the voting process has not ended
         require(votingProcesses[processId].endBlock > block.number, "Voting process has ended");

@@ -22,9 +22,7 @@ use nouns_protocol::{
     Wrapper,
 };
 
-// TODO: Factor out
-use nouns_protocol::noir::toml::TomlSerializable;
-
+use nouns_protocol::noir::BlockHashVerifierInput;
 use tokio::runtime::Runtime;
 
 use crate::ethereum::proofs;
@@ -68,6 +66,8 @@ abigen!(
             function tokenOfOwnerByIndex(address owner, uint256 index) public view virtual returns (uint256)
             function mint() public returns (uint256)   
             function minter() public view returns (address)
+            function delegate(address delegatee) public
+            function delegates(address delegator) public view returns (address)
         ]"#,
 );
 
@@ -183,28 +183,13 @@ pub async fn create_process(
                                      })
                                  }})?;
     
-    // Toml serialise
-    let mut toml_map = toml::map::Map::new();
-
-    toml_map.insert("block_hash".to_string(), block_hash.toml());
-    toml_map.insert("block_header".to_string(), block_header.toml());
-    toml_map.insert("registry_address".to_string(), zk_registry_address.toml());
-    toml_map.insert("registry_state_proof".to_string(), zk_registry_state_proof.toml());
-    toml_map.insert("registry_storage_root".to_string(), zk_registry_storage_root.toml());
-    toml_map.insert("nft_contract_address".to_string(), nouns_token_address.toml());
-    toml_map.insert("nft_state_proof".to_string(), nouns_token_contract_state_proof.toml());
-    toml_map.insert("nft_storage_root".to_string(), nouns_token_contract_storage_root.toml());
-
-    let prover_toml = toml::Value::Table(toml_map);
-    
-    // Plug everything in to hash_verifier circuit
-    let circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
-
-    let circuit_config_toml = include_str!("../../../circuits/hash_proof/Nargo.toml");
-
     let proof = exec_with_progress("Generating hash proof (this might take a while)",
-                                   || {
-                                       nouns_protocol::noir::run_singleton_noir_project(circuit_config_toml, circuit, prover_toml).map_err(|_| "Proof generation failed.".to_string())
+                                   move || {
+                                       nouns_protocol::noir::prove_block_hash(
+                                           BlockHashVerifierInput {
+                                               block_hash, block_header, registry_address: zk_registry_address, registry_state_proof: zk_registry_state_proof, registry_storage_root: zk_registry_storage_root, nft_contract_address: nouns_token_address, nft_state_proof: nouns_token_contract_state_proof, nft_storage_root: nouns_token_contract_storage_root
+                                           }
+                                           )
                                    })?;
 
     let tlcs_round_number
@@ -660,6 +645,37 @@ pub async fn obtain_token_ids_to_vote(
     }
 
     Ok(token_ids)
+}
+
+/// Function to delegate tokens to another address
+pub async fn delegate_tokens(
+    wallet_address: Address,
+    delegate_address: Address,
+    nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+    client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+) -> Result<Address, String> {
+    let client = Arc::new(client);
+    // Request from voting contract the nouns token address
+    let nouns_token_address = nouns_voting.nouns_token().call().await.unwrap();
+    let nouns_token = NounsToken::new(nouns_token_address, client);
+
+    // Get the balance of the account and check if user has any tokens
+    let balance = nouns_token.balance_of(wallet_address).call().await.unwrap();
+
+    if balance == EthersU256::zero() {
+        Err(
+            "User has no tokens."
+                .to_string(),
+        )?;
+    }
+
+    nouns_token.delegate(delegate_address).send().await.unwrap();
+
+    // Confirm delegation
+    let delegates_req = nouns_token.delegates(wallet_address);
+    let delegates = delegates_req.call().await.unwrap();
+
+    Ok(delegates)
 }
 
 #[cfg(test)]
