@@ -99,10 +99,11 @@ async fn main() {
             )
             .await
         }
-        CliCommand::Vote(process_id, nft_id, bbjj_private_key, vote_choice) => {
+        CliCommand::Vote(voter_address, process_id, nft_id, bbjj_private_key, vote_choice) => {
             vote(
                 client,
                 eth_connection,
+                voter_address,
                 global_param.contract_address,
                 process_id,
                 nft_id,

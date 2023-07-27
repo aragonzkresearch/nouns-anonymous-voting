@@ -251,6 +251,7 @@ pub async fn create_process(
 pub async fn vote(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     eth_connection: Provider<Http>,
+    voter_address: Address, // The address that is enrolled to vote
     nouns_voting_address: Address,
     process_id: U256,
     nft_id: U256,
@@ -294,7 +295,7 @@ pub async fn vote(
     println!("Submitting vote for proposal at ipfs://{}", ipfs_cid_string);
     
     let (nft_owner, registry_account_state_hash,
-         registry_account_state_proof_x, nft_account_state_hash, nft_account_state_proof)
+         registry_account_state_proof_x, nft_account_state_hash, nft_account_state_proof, delegation_proof)
         = exec_with_progress("Fetching data from blockchain",
                              {
                                  let bbjj_private_key = PrivateKey
@@ -330,7 +331,7 @@ pub async fn vote(
 
                                          let (registry_account_state_hash, registry_account_state_proof_x) = proofs::get_zk_registry_proof(
                                              &eth_connection,
-                                             nft_owner,
+                                             voter_address,
                                              U64::from(census_block_number),
                                              zk_registry_address,
                                          )
@@ -345,23 +346,35 @@ pub async fn vote(
                                              ));
                                          }
 
+                                         // Fetch NFT ownership proof
                                          let (nft_account_state_hash, nft_account_state_proof) = proofs::get_nft_ownership_proof(
-                                             eth_connection,
+                                             eth_connection.clone(),
                                              wrap_into!(nft_id),
                                              U64::from(census_block_number),
                                              nouns_token_address,
                                          )
                                              .await?;
 
-                                         // Check that the storage proof is correct
-                                         if nft_account_state_proof.value != EthersU256::from_big_endian(&nft_owner.as_bytes()) {
+                                         // ...as well as delegation proof
+                                         let (_, delegation_proof) = proofs::get_delegation_proof(
+                                             eth_connection,
+                                             nft_owner,
+                                             U64::from(census_block_number),
+                                             nouns_token_address,
+                                         )
+                                             .await?;
+
+                                         // Check that the NFT ownership proof implies that voter_address is the owner
+                                         // *or* nft_owner has delegated to voter_address
+                                         if (nft_account_state_proof.value != EthersU256::from_big_endian(&nft_owner.as_bytes())) & (delegation_proof.value != EthersU256::from_big_endian(&voter_address.as_bytes())) {
                                              return Err(format!(
-                                                 "Error: The NFT id in the storage proof is not the expected one."
+                                                 "Error: The voter is neither the owner of the NFT nor its delegate."
                                              ));
                                          }
+                                         
                                          Ok((nft_owner,
                                              registry_account_state_hash, registry_account_state_proof_x,
-                                             nft_account_state_hash, nft_account_state_proof))
+                                             nft_account_state_hash, nft_account_state_proof, delegation_proof))
                                      })}})?;
     
 
@@ -384,6 +397,7 @@ pub async fn vote(
                                                          (
                                                              nft_account_state_proof.clone(),
                                                              registry_account_state_proof_x.clone(),
+                                                             delegation_proof.clone()
                                                          ),
                                                          rng,
                                                      )

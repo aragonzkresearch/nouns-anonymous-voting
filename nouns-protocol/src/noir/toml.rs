@@ -104,11 +104,10 @@ impl TomlSerializable for VoteProverInput {
         map.insert("nft_id".to_string(), self.nft_id.toml());
         map.insert("k".to_string(), self.k.toml());
         map.insert("registered_pbk".to_string(), self.registered_pbk.toml());
-        map.insert("registry_key_sp".to_string(), self.registry_key_sp.toml());
-        map.insert(
-            "nft_ownership_proof".to_string(),
-            self.nft_ownership_proof.toml(),
-        );
+        map.insert("registry_key_proof".to_string(), self.registry_key_sp.toml());
+        map.insert("nft_ownership_proof".to_string(), self.nft_ownership_proof.toml());
+        map.insert("delegation_proof".to_string(), self.delegation_proof.toml());
+        
         Value::Table(map)
     }
 }

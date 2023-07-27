@@ -68,7 +68,7 @@ impl Voter {
         tlcs_pk: BBJJ_Ec,
         nft_account_state: U256,
         registry_account_state: U256,
-        storage_proofs: (StorageProof, StorageProof),
+        storage_proofs: (StorageProof, StorageProof, StorageProof),
         rng: &mut R,
     ) -> Result<(Ballot, Vec<u8>), String> {
         // Convert the parameters to the correct field
@@ -112,6 +112,7 @@ impl Voter {
             registered_pbk: self.registered_sk.public(),
             registry_key_sp: storage_proofs.1,
             nft_ownership_proof: storage_proofs.0,
+            delegation_proof: storage_proofs.2
         };
 
         let proof = noir::prove_vote(noir_input)?;

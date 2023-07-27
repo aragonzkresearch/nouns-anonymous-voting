@@ -32,10 +32,11 @@ async fn main() {
 
     if let Ok(_) = io::stdin().read_line(&mut delegate_address)
     {
-        let delegate_address = Address::from_str(&delegate_address).expect("Error parsing delegate address!");
+        if let Ok(delegate_address) = Address::from_str(&delegate_address)
+            {
+                let delegates = delegate_tokens(wallet_address, delegate_address, nouns_voting, client).await.expect("Error delegating.");
         
-        let delegates = delegate_tokens(wallet_address, delegate_address, nouns_voting, client).await.expect("Error delegating.");
-        
-        println!("Tokens have been delegated to {}.", delegates);
+                println!("Tokens have been delegated to {}.", delegates);
+            }
     }
 }

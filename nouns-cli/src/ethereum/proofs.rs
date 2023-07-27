@@ -15,6 +15,7 @@ use crate::EthersU256;
 
 pub(crate) const REGISTRY_SLOT_OFFSET: u64 = 0;
 pub(crate) const NFT_OWNER_SLOT_OFFSET: u64 = 3;
+pub(crate) const DELEGATE_SLOT_OFFSET: u64 = 0x0b;
 
 pub(crate) const BBJJ_INTERFACE_X_ID: u8 = 0;
 pub(crate) const BBJJ_INTERFACE_Y_ID: u8 = 1;
@@ -61,6 +62,38 @@ pub(crate) async fn get_nft_ownership_proof(
         .ok_or("Error getting NFT account state proof")?;
 
     Ok((nft_account_state_hash, nft_account_state_proof.clone()))
+}
+
+pub(crate) async fn get_delegation_proof(
+    eth_connection: Provider<Http>,
+    address: Address,
+    start_block_number: U64,
+    nouns_token_address: Address,
+) -> Result<(EthersU256, StorageProof), String> {
+    let delegation_proof = eth_connection
+        .get_proof(
+            nouns_token_address,
+            vec![map_storage_slot(
+                H256::from_uint(&DELEGATE_SLOT_OFFSET.into()),
+                vec![H256::from(address)],
+            )],
+            Some(BlockId::from(start_block_number.as_u64())),
+        )
+        .await
+        .map_err(|e| format!("Error getting delegation proof: {}", e))?;
+
+    // Validate the proof
+    if let Err(err) = validate_proof(&delegation_proof.storage_proof[0].proof) {
+        return Err(format!("Invalid delegation proof: {}", err));
+    }
+
+    let nft_contract_storage_hash = delegation_proof.storage_hash.into_uint();
+    let delegation_storage_proof = delegation_proof
+        .storage_proof
+        .get(0)
+        .ok_or("Error getting delegation proof")?;
+
+    Ok((nft_contract_storage_hash, delegation_storage_proof.clone()))
 }
 
 pub(crate) async fn get_zk_registry_proof(

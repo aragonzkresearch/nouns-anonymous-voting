@@ -24,7 +24,7 @@ pub struct GlobalCliParams {
 pub enum CliCommand {
     RegKey(PrivateKey),
     CreateProcess(H256, Duration, Duration),
-    Vote(U256, U256, PrivateKey, VoteChoice),
+    Vote(Address, U256, U256, PrivateKey, VoteChoice),
     Tally(U256),
     None, // No command was chosen
 }
@@ -94,10 +94,13 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
     // Parse the command `vote`
     if let Some(matches) = matches.subcommand_matches("vote") {
+        let voter_address: &String = matches
+            .get_one("voter-address")
+            .ok_or("Missing voter's address")?;
         let process_id: &String = matches
             .get_one("voting-process-id")
             .ok_or("Missing process id")?;
-        let nft_id: &String = matches.get_one("nft-id").ok_or("Missing nft id")?;
+        let nft_id: &String = matches.get_one("nft-id").ok_or("Missing NFT id")?;
         let nft_owner_prk: &String = matches
             .get_one("reg-private-key")
             .ok_or("Missing nft owner private registry key")?;
@@ -105,6 +108,7 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
             .get_one("vote-choice")
             .ok_or("Missing vote choice")?;
 
+        let voter_address = Address::from_str(voter_address).map_err(|e| format!("Invalid voter address: {}", e))?;
         let process_id = U256::from_u64(
             u64::from_str(process_id.as_ref())
                 .map_err(|e| format!("Invalid process id: {:?}", e))?,
@@ -122,7 +126,7 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
         return Ok((
             global_cli_param,
-            CliCommand::Vote(process_id, nft_id, nft_owner_prk, vote_choice),
+            CliCommand::Vote(voter_address, process_id, nft_id, nft_owner_prk, vote_choice),
         ));
     }
 
@@ -219,6 +223,14 @@ fn command_constructor() -> Command {
         .subcommand(
             Command::new("vote")
                 .about("Allows the user to vote in an existing voting process")
+                .arg(
+                    Arg::new("voter-address")
+                        .short('a')
+                        .long("voter-address")
+                        .help("The address of the voter who must be in the zkRegistry. This should *not* coincide with the address of the wallet used to carry out this transaction!")
+                        .help("Example: `0xa8b2e7f501928374169283f7b2a5d3f9e0a7b3d6`")
+                        .required(true)
+                )
                 .arg(
                     Arg::new("voting-process-id")
                         .short('p')

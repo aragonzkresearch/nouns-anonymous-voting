@@ -56,6 +56,7 @@ pub(crate) struct VoteProverInput {
     pub(crate) registered_pbk: BBJJ_Ec,
     pub(crate) registry_key_sp: StorageProof,
     pub(crate) nft_ownership_proof: StorageProof,
+    pub(crate) delegation_proof: StorageProof,
 }
 
 /// The input to the Noir Tally Prover Circuit

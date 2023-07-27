@@ -43,8 +43,9 @@ struct VoteProverInput<MAX_PROOF_SIZE>
     k: Point,
 
     registered_pbk: Point,
-    registry_key_sp: TrieProof<32, MAX_PROOF_SIZE, 32>, // Proof of registration
-    nft_ownership_proof: TrieProof<32, MAX_PROOF_SIZE, 32> // Proof of NFT ownership
+    registry_key_proof: TrieProof<32, MAX_PROOF_SIZE, 32>, // Proof of registration
+    nft_ownership_proof: TrieProof<32, MAX_PROOF_SIZE, 32>, // Proof of NFT ownership
+    delegation_proof: TrieProof<32, MAX_PROOF_SIZE, 32> // Proof of (non-)delegation
 }
 
 fn main(
@@ -68,8 +69,9 @@ fn main(
     nft_id: [Field; 2],
     k: [Field; 2],
     registered_pbk: [Field; 2],
-    registry_key_sp: TrieProof<32, DEPTH8_PROOF_SIZE, 32>, // Proof of registration
-    nft_ownership_proof: TrieProof<32, DEPTH8_PROOF_SIZE, 32> // Proof of NFT ownership
+    registry_key_proof: TrieProof<32, DEPTH8_PROOF_SIZE, 32>,
+    nft_ownership_proof: TrieProof<32, DEPTH8_PROOF_SIZE, 32>,
+    delegation_proof: TrieProof<32, DEPTH8_PROOF_SIZE, 32>
 )
 {
     let vote = VoteProverInput {
@@ -91,8 +93,9 @@ fn main(
         nft_id,
         k: Point::new(k[0], k[1]),
         registered_pbk: Point::new(registered_pbk[0], registered_pbk[1]),
-        registry_key_sp,
-        nft_ownership_proof
+        registry_key_proof,
+        nft_ownership_proof,
+        delegation_proof
     };
 
     verify_vote(vote);
@@ -139,17 +142,17 @@ fn verify_vote<MAX_PROOF_SIZE>(vote: VoteProverInput<MAX_PROOF_SIZE>)
     };
     
     // Keys should match
-    assert(calculated_registry_key == vote.registry_key_sp.key);
+    assert(calculated_registry_key == vote.registry_key_proof.key);
 
     // And value should be what we expect
     let pbk_x_bytes = vote.registered_pbk.x.to_be_bytes(32);
     for i in 0..32
     {
-        assert(pbk_x_bytes[i] == vote.registry_key_sp.value[i]);
+        assert(pbk_x_bytes[i] == vote.registry_key_proof.value[i]);
     }
 
     // Storage proof verification
-    assert(vote.registry_key_sp.verify_storage_root(u256_from_fields(vote.registry_account_state)));
+    assert(vote.registry_key_proof.verify_storage_root(u256_from_fields(vote.registry_account_state)));
 
     // Check NFT ownership
     let calculated_nft_key = {
@@ -171,19 +174,67 @@ fn verify_vote<MAX_PROOF_SIZE>(vote: VoteProverInput<MAX_PROOF_SIZE>)
     // Keys should match
     assert(calculated_nft_key == vote.nft_ownership_proof.key);
 
-    // And value should be what we expect
+    // NFT ownership proof verification
+    assert(vote.nft_ownership_proof.verify_storage_root(u256_from_fields(vote.nft_account_state)));
+
+
+    // The value should be an address
     for i in 0..12
     {
         assert(vote.nft_ownership_proof.value[i] == 0);
     }
+
+    // Take note of the owner
+    let mut nft_owner: [u8; 20] = [0; 20];
     
     for i in 0..20
     {
-        assert(vote.nft_ownership_proof.value[12 + i] == address_in_bytes[i]);
+        nft_owner[i] = vote.nft_ownership_proof.value[12 + i];
     }
 
-    // Storage proof verification
-    assert(vote.nft_ownership_proof.verify_storage_root(u256_from_fields(vote.nft_account_state)));
+    // Now check whether the owner's address is the voter's address
+    let mut nft_owner_p = true;
+    for i in 0..20 { nft_owner_p &= nft_owner[i] == address_in_bytes[i]; }
+
+    // If the corresponding delegate storage slot is empty, the corresponding storage proof will
+    // fail to verify, as there is nothing in that storage slot. In this case, the NFT owner
+    // should be the voter.
+    if vote.delegation_proof.value == [0; 32]
+    {
+        assert(nft_owner_p);
+    }
+    else
+    {
+        // Compute NFT owner's delegation key
+        let calculated_delegation_key = {
+            let mut buf = [0; 64];
+            
+            buf[63] = 0x0b;
+            
+            for i in 0..20
+            {
+                buf[12 + i] = nft_owner[i];
+            }
+
+            keccak256(buf, 64)
+        };
+
+        // Check that it is the one in the proof
+        assert(calculated_delegation_key == vote.delegation_proof.key);
+
+        // Verify the storage proof
+        assert(vote.delegation_proof.verify_storage_root(u256_from_fields(vote.nft_account_state)));
+
+        // Check that the voter is the delegatee
+        for i in 0..12
+        {
+            assert(vote.delegation_proof.value[i] == 0);
+        }
+        for i in 0..20
+        {
+            assert(vote.delegation_proof.value[12 + i] == address_in_bytes[i]);
+        }
+    }
 }
 
 fn u256_from_fields(x: [Field; 2]) -> [u8; 32] // Convert a pair of 128-bit field elements to a 32-byte array
