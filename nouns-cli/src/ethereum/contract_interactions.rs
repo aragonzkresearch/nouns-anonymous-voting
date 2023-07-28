@@ -183,7 +183,7 @@ pub async fn create_process(
                                      })
                                  }})?;
     
-    let proof = exec_with_progress("Generating hash proof (this might take a while)",
+    let proof = exec_with_progress("Generating block hash proof (this might take a while)",
                                    move || {
                                        nouns_protocol::noir::prove_block_hash(
                                            BlockHashVerifierInput {
@@ -278,7 +278,7 @@ pub async fn vote(
         let tlcs_round_number = nouns_voting.get_tlcs_round_number(wrap_into!(process_id)).call().await
             .map_err(|e| format!("Error fetching TLCS round number from NounsVoting contract: {:?}", e))?;
            let tlcs_pbk_string = 
-            exec_with_progress("Waiting for TLCS public key",
+            exec_with_progress("Fetching TLCS public key",
                                {
                                    move || {
                                        let rt = Runtime::new().unwrap();
@@ -539,7 +539,7 @@ pub async fn tally(
                                                 )}
     )?;
 
-    let tx_hash = exec_with_progress("Submitting tally to smart contract",
+    let tx_hash = exec_with_progress("Submitting results to smart contract",
                                      move || {
                                          let rt = Runtime::new().unwrap();
                                          rt.block_on( async {
