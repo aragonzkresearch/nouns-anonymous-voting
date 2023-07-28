@@ -1,15 +1,33 @@
 use babyjubjub_ark::Signature;
-use ethers::types::StorageProof;
+use ethers::types::{Address, H256, StorageProof};
 
-use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BlockHeader, BN254_Fr, StateProof};
 
-mod toml;
+pub mod toml;
 
-// Useful constants for storage proofs
+// Maximum byte length for a state or storage proof node
 pub const MAX_NODE_LEN: usize = 532;
+
+// Maximum account state size as RLP-encoded byte array
+pub const MAX_ACCOUNT_STATE_SIZE: usize = 134;
+
+// Maximum block header size in bytes
+pub const MAX_BLOCK_HEADER_SIZE: usize = 630;
+    
 // The maximum byte length of a node
 pub const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
+/// Input to the Noir block hash checker
+pub struct BlockHashVerifierInput {
+    pub block_hash: H256,
+    pub block_header: BlockHeader,
+    pub registry_address: Address,
+    pub registry_state_proof: StateProof,
+    pub registry_storage_root: H256,
+    pub nft_contract_address: Address,
+    pub nft_state_proof: StateProof,
+    pub nft_storage_root: H256
+}
 /// The input to the Noir Vote Prover Circuit
 pub(crate) struct VoteProverInput {
     // Public input for the circuit
@@ -38,6 +56,7 @@ pub(crate) struct VoteProverInput {
     pub(crate) registered_pbk: BBJJ_Ec,
     pub(crate) registry_key_sp: StorageProof,
     pub(crate) nft_ownership_proof: StorageProof,
+    pub(crate) delegation_proof: StorageProof,
 }
 
 /// The input to the Noir Tally Prover Circuit
@@ -53,121 +72,85 @@ pub(crate) struct TallyProverInput {
     pub(crate) v: Vec<VoteChoice>,
 }
 
-/// Generates a proof for a vote
-///
-/// NOTE: This function is currently reliant on the prover being run in the root of the repo
-/// This function is incompatible with the Browser.
-///
-/// Furthermore, the function makes use of the Filesystem and Shell.
-/// For the future, we should consider using a Rust Library implementation of the Noir Prover
-/// When such a library is available, we can remove the dependency on the filesystem and shell
 #[cfg(not(feature = "mock-prover"))]
-pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
-    let vote_prover_dir = "../circuits/client-proof";
+pub fn prove_block_hash(input: BlockHashVerifierInput) -> Result<Vec<u8>, String> {
+    let voter_circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
+    let voter_circuit_config_toml = include_str!("../../../circuits/hash_proof/Nargo.toml");
 
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let prover_input = prover_input
-        .as_table()
-        .map_or(Err("Failed to serialize input to toml!".to_string()), |t| {
-            Ok(t)
-        })?;
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).expect("Error: Failed to generate proof.");
 
-    let prover_input_as_string = ::toml::to_string_pretty(&prover_input)
-        .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
+    Ok(proof)
+}
 
-    // Save the input to a file for the prover to read
-    let file_path = format!("{}/Prover.toml", vote_prover_dir);
-    // If the file does not exist, create it
-    if !std::path::Path::new(&file_path).exists() {
-        std::fs::File::create(&file_path)
-            .map_err(|e| format!("Failed to create input file! Error: {}", e.to_string()))?;
-    }
-    std::fs::write(file_path, prover_input_as_string)
-        .map_err(|e| format!("Failed to write input to file! Error: {}", e.to_string()))?;
+/// Generates a proof for a vote
+///
+/// Note: This function is incompatible with the browser.
+///
+/// Furthermore, the function makes use of the filesystem and shell.
+/// For the future, we should consider using a Rust Library implementation of the Noir Prover
+/// When such a library is available, we can remove the dependency on the filesystem and shell
+#[cfg(not(feature = "mock-prover"))]
+pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
+    let voter_circuit = include_str!("../../../circuits/client-proof/src/main.nr");
+    let voter_circuit_config_toml = include_str!("../../../circuits/client-proof/Nargo.toml");
 
-    // Run the prover as a shell command `noir prove` in a `noir` subdirectory
-    let output = std::process::Command::new("nargo")
-        .current_dir(vote_prover_dir)
-        .arg("prove")
-        .arg("p")
-        .output()
-        .map_err(|e| format!("Failed to run noir prover! Error: {}", e.to_string()))?;
+    // Serialize the input into a toml string
+    let prover_input = self::toml::TomlSerializable::toml(input);
 
-    // Check if the prover succeeded
-    if !output.status.success() {
-        return Err(format!(
-            "Noir prover failed! Error: {}",
-            String::from_utf8(output.stderr).unwrap()
-        ));
-    }
-
-    // Read the proof from the file
-    let proof = std::fs::read(vote_prover_dir.to_owned() + "/proofs/p.proof")
-        .map_err(|e| format!("Failed to read proof from file! Error: {}", e.to_string()))?;
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).expect("Error: Failed to generate proof.");
 
     Ok(proof)
 }
 
 #[cfg(not(feature = "mock-prover"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
-    let num_voters = input.k.len();
-    assert!(
-        num_voters <= 256,
-        "Support for more than 256 voters coming soon™"
-    );
+    let mut tally_circuit = "\
+    global MAX_VOTERS: Field = 16;
 
-    let nearest_power_of_two = [16, 256]
-        .into_iter()
-        .filter(|x| x >= &num_voters)
-        .next()
-        .unwrap();
+    fn main(b_k: pub Field, process_id: pub Field, contract_addr: pub Field, chain_id: pub [Field; 2], vote_count: pub [Field; 3], num_voters: Field, k_x: [Field; MAX_VOTERS], k_y: [Field; MAX_VOTERS], v: [Field; MAX_VOTERS])
+{
+    assert(verify_tally(b_k, process_id, contract_addr, chain_id, vote_count, num_voters, k_x, k_y, v));
+}
 
-    let vote_prover_dir = format!("../circuits/{}_voters", nearest_power_of_two);
+".to_string();
+    tally_circuit.push_str(include_str!("../../../circuits/tally/src/lib.nr"));
+    let tally_circuit_config_toml = "[package]
+authors = []
 
-    // Serialize the input into a toml string
+[dependencies]";
+
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let prover_input = prover_input
-        .as_table()
-        .map_or(Err("Failed to serialize input to toml!".to_string()), |t| {
-            Ok(t)
-        })?;
+    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input).expect("Error: Failed to generate proof.");
 
-    let prover_input_as_string = ::toml::to_string_pretty(&prover_input)
-        .map_err(|e| format!("Failed to serialize input to toml! Error {}", e.to_string()))?;
+    Ok(proof)
+}
 
-    // Save the input to a file for the prover to read
-    let file_path = format!("{}/Prover.toml", vote_prover_dir);
-    // If the file does not exist, create it
-    if !std::path::Path::new(&file_path).exists() {
-        std::fs::File::create(&file_path)
-            .map_err(|e| format!("Failed to create input file! Error: {}", e.to_string()))?;
-    }
-    std::fs::write(file_path, prover_input_as_string)
-        .map_err(|e| format!("Failed to write input to file! Error: {}", e.to_string()))?;
+pub fn run_singleton_noir_project(circuit_config_toml: &str, circuit: &str, prover_toml: ::toml::Value) -> Result<Vec<u8>, std::io::Error>
+{
+    let tmp_dir = tempdir::TempDir::new("nouns")?;
+    let circuit_config_toml_path = tmp_dir.path().join("Nargo.toml");
+    std::fs::write(circuit_config_toml_path, circuit_config_toml)?;
+    
+    std::fs::create_dir(tmp_dir.path().join("src"))?;
+    let circuit_path = tmp_dir.path().join("src").join("main.nr");
+    std::fs::write(circuit_path, circuit)?;
 
-    // Run the prover as a shell command `noir prove` in a `noir` subdirectory
-    let output = std::process::Command::new("nargo")
-        .current_dir(vote_prover_dir.clone())
+    let prover_toml_path = tmp_dir.path().join("Prover.toml");
+    let prover_toml_string = ::toml::to_string_pretty(&prover_toml).expect("Failed to construct Prover.toml.");
+    std::fs::write(prover_toml_path, prover_toml_string)?;
+
+    let mut proof_string = std::process::Command::new("nargo")
+        .current_dir(tmp_dir.path())
         .arg("prove")
-        .arg("p")
-        .output()
-        .map_err(|e| format!("Failed to run noir prover! Error: {}", e.to_string()))?;
-
-    // Check if the prover succeeded
-    if !output.status.success() {
-        return Err(format!(
-            "Noir prover failed! Error: {}",
-            String::from_utf8(output.stderr).unwrap()
-        ));
-    }
-
-    // Read the proof from the file
-    let proof = std::fs::read(vote_prover_dir.to_owned() + "/proofs/p.proof")
-        .map_err(|e| format!("Failed to read proof from file! Error: {}", e.to_string()))?;
-
+        .output()?.stdout;
+    
+    proof_string.pop(); // Pop off newline
+    let proof = hex::decode(proof_string).expect("Error decoding proof string");
+    
     Ok(proof)
 }
 

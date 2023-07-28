@@ -46,6 +46,8 @@ contract NounsMainnetVotingDeployScript is Script {
         NounsToken token = NounsToken(address(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03));
 
         ZKRegistry zkRegistry = new ZKRegistry();
+	// TODO
+	INoirVerifier noirHashVerifier = new YesManNoirVerifier();
         // TODO - Deploy Correct Noir Vote Verifier
         INoirVerifier noirVoteVerifier = new YesManNoirVerifier();
         // TODO - Deploy Correct Noir Tally Verifier
@@ -55,6 +57,7 @@ contract NounsMainnetVotingDeployScript is Script {
         NounsVoting nounsVoting = new NounsVoting(
             token,
             zkRegistry,
+	    noirHashVerifier,
             noirVoteVerifier,
             noirTallyVerifier,
             poseidonFactory.poseidon2()

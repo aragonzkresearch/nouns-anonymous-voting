@@ -4,13 +4,18 @@ use ethers::prelude::{
 };
 use ethers::utils::keccak256;
 
-use nouns_protocol::noir::MAX_DEPTH;
+use nouns_protocol::noir;
 use nouns_protocol::MAX_NODE_LEN;
+use nouns_protocol::{StateProof, BlockHeader};
+
+use ethers::types::{Block, Bytes};
+use ethers::utils::rlp;
 
 use crate::EthersU256;
 
 pub(crate) const REGISTRY_SLOT_OFFSET: u64 = 0;
 pub(crate) const NFT_OWNER_SLOT_OFFSET: u64 = 3;
+pub(crate) const DELEGATE_SLOT_OFFSET: u64 = 0x0b;
 
 pub(crate) const BBJJ_INTERFACE_X_ID: u8 = 0;
 pub(crate) const BBJJ_INTERFACE_Y_ID: u8 = 1;
@@ -46,7 +51,7 @@ pub(crate) async fn get_nft_ownership_proof(
         .map_err(|e| format!("Error getting NFT account proof: {}", e))?;
 
     // Validate the proof
-    if let Err(err) = validate_storage_proof(&nft_account_proof.storage_proof[0]) {
+    if let Err(err) = validate_proof(&nft_account_proof.storage_proof[0].proof) {
         return Err(format!("Invalid NFT Account proof: {}", err));
     }
 
@@ -57,6 +62,38 @@ pub(crate) async fn get_nft_ownership_proof(
         .ok_or("Error getting NFT account state proof")?;
 
     Ok((nft_account_state_hash, nft_account_state_proof.clone()))
+}
+
+pub(crate) async fn get_delegation_proof(
+    eth_connection: Provider<Http>,
+    address: Address,
+    start_block_number: U64,
+    nouns_token_address: Address,
+) -> Result<(EthersU256, StorageProof), String> {
+    let delegation_proof = eth_connection
+        .get_proof(
+            nouns_token_address,
+            vec![map_storage_slot(
+                H256::from_uint(&DELEGATE_SLOT_OFFSET.into()),
+                vec![H256::from(address)],
+            )],
+            Some(BlockId::from(start_block_number.as_u64())),
+        )
+        .await
+        .map_err(|e| format!("Error getting delegation proof: {}", e))?;
+
+    // Validate the proof
+    if let Err(err) = validate_proof(&delegation_proof.storage_proof[0].proof) {
+        return Err(format!("Invalid delegation proof: {}", err));
+    }
+
+    let nft_contract_storage_hash = delegation_proof.storage_hash.into_uint();
+    let delegation_storage_proof = delegation_proof
+        .storage_proof
+        .get(0)
+        .ok_or("Error getting delegation proof")?;
+
+    Ok((nft_contract_storage_hash, delegation_storage_proof.clone()))
 }
 
 pub(crate) async fn get_zk_registry_proof(
@@ -90,7 +127,7 @@ pub(crate) async fn get_zk_registry_proof(
         .map_err(|_| format!("Error getting ZKRegistry proof"))?;
 
     // Validate the proof
-    if let Err(err) = validate_storage_proof(&zk_registry_proof.storage_proof[0]) {
+    if let Err(err) = validate_proof(&zk_registry_proof.storage_proof[0].proof) {
         return Err(format!("Invalid ZKRegistry proof: {}", err));
     }
 
@@ -106,23 +143,90 @@ pub(crate) async fn get_zk_registry_proof(
     ))
 }
 
-/// This function validates the storage proof returned by the Ethereum node
-/// It checks that the proof is not too long and that the nodes are not too long for the circuit
-/// It returns an error if the proof is invalid
-fn validate_storage_proof(proof: &StorageProof) -> Result<Option<()>, String> {
+/// This function validates the proof returned by the Ethereum node in the following sense:
+/// - It checks that the proof depth is not too large.
+/// - It checks that the nodes' sizes do not exceed their upper bound.
+/// - It returns an error if the proof is invalid.
+fn validate_proof(proof: &Vec<Bytes>) -> Result<Option<()>, String> {
     // Check that the length of the proof is not too long
-    if proof.proof.len() > MAX_DEPTH {
-        return Err(format!("Proof is too long: {}", proof.proof.len()));
+    if proof.len() > noir::MAX_DEPTH {
+        return Err(format!("Proof is too long: {}", proof.len()));
     }
 
     // Make sure path is valid
-    for node in proof.proof.iter() {
+    for node in proof.iter() {
         if node.len() > MAX_NODE_LEN {
-            return Err(format!("Invalid node!"));
+            return Err(format!("Node is too big, thus invalid."));
         }
     }
 
     Ok(None)
+}
+
+
+pub(crate) async fn get_state_proof(
+    eth_connection: &Provider<Http>,
+    block_number: U64,
+    address: Address)
+    -> Result<StateProof, String>
+{
+    // Call eth_getProof
+    let proof_data = eth_connection.get_proof(address, vec![], Some(block_number.into())).await.expect("Error getting state proof");
+
+    // Form proof in the form of a path
+    let proof = proof_data.account_proof;
+
+    // Validate proof
+    if let Err(err) = validate_proof(&proof) {
+        return Err(format!("Invalid state proof for address {}: {}", address, err));
+    }
+
+    // Extract value in RLP form
+    // TODO: Integrity check
+    let value = rlp::Rlp::new(
+        proof.last() // Terminal proof node
+            .expect("Error: State proof empty")) // Proof should have been non-empty
+        .as_list::<Vec<u8>>().expect("Error: Invalid RLP encoding")
+        .last() // Extract value
+        .expect("Error: RLP list empty").clone()
+        ;
+
+    
+    Ok(
+        StateProof {
+            key: address,
+            proof,
+            value
+        }
+    )
+}
+
+pub(crate) fn header_from_block(
+    block: &Block<H256>) -> Result<BlockHeader, String>
+{
+    let fork_headsup = "Error: Should be on Shanghai fork.";
+    
+    let mut block_header = rlp::RlpStream::new_list(17);
+
+    block_header.append(&block.parent_hash);
+    block_header.append(&block.uncles_hash);
+    block_header.append(&block.author.unwrap());
+    block_header.append(&block.state_root);
+    block_header.append(&block.transactions_root);
+    block_header.append(&block.receipts_root);
+    block_header.append(&block.logs_bloom.unwrap());
+    block_header.append(&block.difficulty);
+    block_header.append(&block.number.unwrap());
+    block_header.append(&block.gas_limit);
+    block_header.append(&block.gas_used);
+    block_header.append(&block.timestamp);
+    block_header.append(&block.extra_data.as_ref()); // ...
+    block_header.append(&block.mix_hash.unwrap());
+    block_header.append(&block.nonce.unwrap());
+    block_header.append(&block.base_fee_per_gas.expect(fork_headsup));
+    block_header.append(&block.withdrawals_root.expect(fork_headsup));
+
+    Ok(BlockHeader(block_header.out().into()))
 }
 
 #[cfg(test)]
@@ -136,7 +240,7 @@ mod test {
     };
 
     use crate::ethereum::contract_interactions::NounsToken;
-    use crate::ethereum::storage_proofs::map_storage_slot;
+    use crate::ethereum::proofs::map_storage_slot;
 
     #[tokio::test]
     async fn test_nft_ownership_proof() -> Result<(), String> {

@@ -2,7 +2,13 @@ use std::ops::Deref;
 use std::time::Duration;
 
 use ethers::core::k256::U256;
+use ethers::types::H256;
 use ethers::utils::hex;
+
+use cid::Cid;
+use multibase::Base;
+use multihash::Multihash;
+use std::str::FromStr;
 
 use nouns_protocol::{BBJJ_Ec, BBJJ_Fr, BN254_Fr, PrimeField};
 
@@ -44,6 +50,27 @@ pub(crate) fn parse_duration<T: Into<String>>(s: T) -> Duration {
         _ => panic!("Invalid duration unit"),
     };
     duration
+}
+
+/// Decodes a raw base32 IPFS CID into a U256
+pub(crate) fn parse_ipfs_hash<T: Into<String>>(s: T) -> Result<H256, String> {
+    let s = s.into();
+
+    let s_cid = Cid::from_str(&s).map_err(|e| format!("Error parsing string as CID: {}", e))?;
+    
+    if s_cid.codec() != 0x55 { return Err("IPFS CID must be raw binary".to_string()); }
+
+    let s_multihash = s_cid.hash();
+
+    if s_multihash.code() != 0x12 { return Err("IPFS CID's underlying must be a sha2-256 hash".to_string()); }
+
+    let s_bytes = s_multihash.digest();
+
+    if s_bytes.len() != 32 { return Err("IPFS CID digest does not have the required length (32 bytes)".to_string());}
+
+    let s_h256 = <[u8;32]>::try_from(s_bytes.deref()).map_err(|e| format!("Could not convert vector to byte array: {}", e))?.into();
+    
+    Ok(s_h256)
 }
 
 /// Parses a be TLCS Public Key string into a BBJJ_Ec

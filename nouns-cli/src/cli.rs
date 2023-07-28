@@ -4,11 +4,12 @@ use std::time::Duration;
 use clap::{command, Arg, Command};
 use ethers::abi::Address;
 use ethers::core::k256::U256;
+use ethers::types::H256;
 
 use nouns_protocol::{BBJJ_Ec, BBJJ_Fr, PrivateKey, VoteChoice};
 
 use crate::parsers::{
-    parse_bbjj_prk, parse_duration, parse_private_key, parse_tlcs_pbk, parse_u256,
+    parse_bbjj_prk, parse_duration, parse_ipfs_hash, parse_private_key, parse_tlcs_pbk, parse_u256,
 };
 
 /// The global parameters of the CLI
@@ -22,9 +23,9 @@ pub struct GlobalCliParams {
 /// Parameters are passed as arguments and the command is executed
 pub enum CliCommand {
     RegKey(PrivateKey),
-    CreateProcess(Duration, BBJJ_Ec),
-    Vote(U256, U256, PrivateKey, VoteChoice, BBJJ_Ec),
-    Tally(U256, BBJJ_Fr),
+    CreateProcess(H256, Duration, Duration),
+    Vote(Option<Address>, U256, U256, PrivateKey, VoteChoice),
+    Tally(U256),
     None, // No command was chosen
 }
 
@@ -71,38 +72,42 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
     // Parse the command `create-process`
     if let Some(matches) = matches.subcommand_matches("create-process") {
+        let start_delay: &String = matches
+            .get_one("start-delay")
+            .ok_or("Missing start delay")?;
         let process_duration: &String = matches
             .get_one("process-duration")
             .ok_or("Missing process duration")?;
-        let tlcs_pbk: &String = matches
-            .get_one("tlcs-public-key")
-            .ok_or("Missing tcls public key")?;
+        let ipfs_hash: &String = matches
+            .get_one("ipfs-hash")
+            .ok_or("Missing IPFS hash")?;
 
+        let start_delay = parse_duration(start_delay);
         let process_duration = parse_duration(process_duration);
-        let tlcs_pbk = parse_tlcs_pbk(tlcs_pbk)?;
+        let ipfs_hash = parse_ipfs_hash(ipfs_hash)?;
 
         return Ok((
             global_cli_param,
-            CliCommand::CreateProcess(process_duration, tlcs_pbk),
+            CliCommand::CreateProcess(ipfs_hash, start_delay, process_duration),
         ));
     }
 
     // Parse the command `vote`
     if let Some(matches) = matches.subcommand_matches("vote") {
+        let voter_address: Option<&String> = matches
+            .get_one("voter-address");
         let process_id: &String = matches
             .get_one("voting-process-id")
             .ok_or("Missing process id")?;
-        let nft_id: &String = matches.get_one("nft-id").ok_or("Missing nft id")?;
+        let nft_id: &String = matches.get_one("nft-id").ok_or("Missing NFT id")?;
         let nft_owner_prk: &String = matches
             .get_one("reg-private-key")
             .ok_or("Missing nft owner private registry key")?;
         let vote_choice: &String = matches
             .get_one("vote-choice")
             .ok_or("Missing vote choice")?;
-        let tlcs_pbk: &String = matches
-            .get_one("tlcs-public-key")
-            .ok_or("Missing tcls public key")?;
 
+        let voter_address = voter_address.and_then(|s| Address::from_str(s).ok());
         let process_id = U256::from_u64(
             u64::from_str(process_id.as_ref())
                 .map_err(|e| format!("Invalid process id: {:?}", e))?,
@@ -117,11 +122,10 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
         .map_err(|e| format!("Invalid nft owner private key: {}", e))?;
 
         let vote_choice = VoteChoice::from(vote_choice.as_str());
-        let tlcs_pbk = parse_tlcs_pbk(tlcs_pbk)?;
 
         return Ok((
             global_cli_param,
-            CliCommand::Vote(process_id, nft_id, nft_owner_prk, vote_choice, tlcs_pbk),
+            CliCommand::Vote(voter_address, process_id, nft_id, nft_owner_prk, vote_choice),
         ));
     }
 
@@ -130,14 +134,10 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
         let process_id: &String = matches
             .get_one("voting-process-id")
             .ok_or("Missing process id")?;
-        let tcls_prk: &String = matches
-            .get_one("tlcs-private-key")
-            .ok_or("Missing tcls public key")?;
 
         let process_id = parse_u256(process_id)?;
-        let tcls_prk = parse_bbjj_prk(tcls_prk).map_err(|_e| "Invalid tcls private key")?;
 
-        return Ok((global_cli_param, CliCommand::Tally(process_id, tcls_prk)));
+        return Ok((global_cli_param, CliCommand::Tally(process_id)));
     }
 
     // No command was chosen
@@ -191,6 +191,16 @@ fn command_constructor() -> Command {
             Command::new("create-process")
                 .about("Creates a new voting process in the NounsVoting contract")
                 .arg(
+                    Arg::new("start-delay")
+                        .short('s')
+                        .long("start-delay")
+                        .help("Optional delay period in m(minutes)/h(hours)/d(days)")
+                        .help("Example: `1d` (1 day)")
+                        .help("Example: `10h` (10 hours)")
+                        .help("Example: `100m` (1 minutes)")
+                        .default_value("0m")
+                )
+                .arg(
                     Arg::new("process-duration")
                         .short('d')
                         .long("process-duration")
@@ -201,17 +211,24 @@ fn command_constructor() -> Command {
                         .required(true)
                 )
                 .arg(
-                    Arg::new("tlcs-public-key")
-                        .short('t')
-                        .long("tlcs-public-key")
-                        .help("TLCS Public Key for the process end time used to encrypt the ballots")
-                        .help("Example: `'0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`")
+                    Arg::new("ipfs-hash")
+                        .short('i')
+                        .long("ipfs-hash")
+                        .help("IPFS CIDv1 hash (raw binary codec using sha2-256 hash) associated with voting process")
+                        .help("Example: bafkreidfgllkxpigujgbavuq5kxdd5yo2jid3abzuxhwj7l6socllnd3m4")
                         .required(true)
-                ),
+                )
         )
         .subcommand(
             Command::new("vote")
                 .about("Allows the user to vote in an existing voting process")
+                .arg(
+                    Arg::new("voter-address")
+                        .short('a')
+                        .long("voter-address")
+                        .help("The address of the voter who must be in the zkRegistry. This should *not* coincide with the address of the wallet used to carry out this transaction! If it is not supplied, it will be deduced from the NFT ID.")
+                        .help("Example: `0xa8b2e7f501928374169283f7b2a5d3f9e0a7b3d6`")
+                )
                 .arg(
                     Arg::new("voting-process-id")
                         .short('p')
@@ -244,14 +261,6 @@ fn command_constructor() -> Command {
                         .help("The Vote Choice as: (Y)es/(N)o/(A)bstain)")
                         .required(true)
                 )
-                .arg(
-                    Arg::new("tlcs-public-key")
-                        .short('t')
-                        .long("tlcs-public-key")
-                        .help("TLCS Public Key for the process end time used to encrypt the ballots")
-                        .help("Example: `'0x0882c07dfb863de7cb769152e581f987b01f723d3cf9a00b3801fd3c206b9537, 0x1f3179c62406bf009ae22a0b15d8d5cf156b9d6945c23aabedea2def1d929364'`")
-                        .required(true)
-                ),
         )
         .subcommand(
             Command::new("tally")
@@ -264,12 +273,5 @@ fn command_constructor() -> Command {
                         .help("Example: `1`")
                         .required(true)
                 )
-                .arg(
-                    Arg::new("tlcs-private-key")
-                        .short('t')
-                        .long("tlcs-private-key")
-                        .help("The TLCS Private Key corresponding to the TLCS Public Key used to encrypt the Ballots")
-                        .required(true)
-                ),
         )
 }

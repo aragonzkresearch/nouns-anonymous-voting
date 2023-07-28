@@ -9,6 +9,19 @@ use nouns_cli::cli::{get_user_input, CliCommand};
 use nouns_cli::ethereum::contract_interactions::{create_process, reg_key, tally, vote};
 use nouns_protocol::{wrap, wrap_into, Wrapper};
 
+static NOUNS_LOGO: &'static str = "\
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     
+░░░░░░\x1b[1;31m██████████\x1b[0m░░\x1b[1;31m██████████\x1b[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░\x1b[1;31m██\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░\x1b[1;31m██\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░\x1b[1;31m██████\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██████\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░░░░░░░░░░\x1b[48;5;236m\x1b[38;5;15mNouns Private Voting CLI\x1b[0m░░░░
+░░\x1b[1;31m██\x1b[0m░░\x1b[1;31m██\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░\x1b[1;31m██\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░\x1b[1;31m██\x1b[0m░░\x1b[1;31m██\x1b[1;37m███\x1b[1;30m███\x1b[1;31m██\x1b[0m░░\x1b[1;31m██\x1b[1;37m███\x1b[1;;30m███\x1b[1;31m██\x1b[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░\x1b[1;31m██████████\x1b[0m░░\x1b[1;31m██████████\x1b[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░\
+";
+
 /// The CLI that to interact with the Nouns Anonymous Voting System
 /// As global parameters, it should take:
 /// 1. The EVM Address of the NounsVoting contract (could be also passed as an environmental variable)
@@ -49,6 +62,7 @@ use nouns_protocol::{wrap, wrap_into, Wrapper};
 ///
 #[tokio::main]
 async fn main() {
+    println!("{}", NOUNS_LOGO);
     // parse the CLI input
     let (global_param, cli_command) = get_user_input().unwrap_or_else(|err| {
         eprintln!("Error: {}", err);
@@ -74,36 +88,37 @@ async fn main() {
         CliCommand::RegKey(bbjj_private_key) => {
             reg_key(client, global_param.contract_address, bbjj_private_key).await
         }
-        CliCommand::CreateProcess(process_duration, tlcs_pbk) => {
+        CliCommand::CreateProcess(ipfs_hash, start_delay, process_duration) => {
             create_process(
                 client,
+                eth_connection,
                 global_param.contract_address,
+                ipfs_hash,
+                start_delay,
                 process_duration,
-                tlcs_pbk,
             )
             .await
         }
-        CliCommand::Vote(process_id, nft_id, bbjj_private_key, vote_choice, tlcs_pbk) => {
+        CliCommand::Vote(voter_address, process_id, nft_id, bbjj_private_key, vote_choice) => {
             vote(
                 client,
                 eth_connection,
+                voter_address,
                 global_param.contract_address,
                 process_id,
                 nft_id,
                 wrap_into!(chain_id),
                 bbjj_private_key,
                 vote_choice,
-                tlcs_pbk,
             )
             .await
         }
-        CliCommand::Tally(process_id, tlcs_prk) => {
+        CliCommand::Tally(process_id) => {
             tally(
                 client,
                 global_param.contract_address,
                 wrap_into!(chain_id),
                 process_id,
-                tlcs_prk,
             )
             .await
         }
@@ -116,6 +131,4 @@ async fn main() {
         eprintln!("Error: {}", err);
         std::process::exit(1);
     });
-
-    println!("Done!");
 }
