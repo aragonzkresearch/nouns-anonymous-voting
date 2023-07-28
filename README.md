@@ -9,10 +9,11 @@ This is a work in progress. Please do not use this in production.
 ## Running the client
 
 ### Pre-requisites
-
-1. Deploy the [Nouns voting contract](contracts/README.md) to an Ethereum network.
-2. Copy the `.env.template` file to `.env` and fill in the values.
-3. Have the Nouns CLI installed or have a source code to build it from.
+1. Install Noir.
+2. Run `prep-contracts.sh` and recompile in case any changes have been made to the underlying circuits.
+3. Deploy the [Nouns voting contract](contracts/README.md) to an Ethereum network.
+4. Copy the `.env.template` file to `.env` and fill in the values.
+5. Have the Nouns CLI installed or have a source code to build it from.
 
 If at any point of time you see that some of the environment variables are not being picked up, try
 running `source .env` to load them into the current shell.

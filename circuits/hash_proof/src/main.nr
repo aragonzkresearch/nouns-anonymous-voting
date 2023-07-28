@@ -18,35 +18,35 @@ fn main(
     nft_storage_root: pub [Field; 2]
 )
 {
-    // // Convert hashes to bytes
-    // let block_hash_bytes = u256_from_fields(block_hash);
-    // let registry_storage_root_bytes = u256_from_fields(registry_storage_root);
-    // let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
+    // Convert hashes to bytes
+    let block_hash_bytes = u256_from_fields(block_hash);
+    let registry_storage_root_bytes = u256_from_fields(registry_storage_root);
+    let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
     
-    // // Check that block header and block hash are consistent and return state root
-    // let state_root_bytes = check_block(block_hash_bytes, block_header);
+    // Check that block header and block hash are consistent and return state root
+    let state_root_bytes = check_block(block_hash_bytes, block_header);
 
-    // // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
-    // let registry_address_bytes = registry_address.to_be_bytes(20);
-    // for i in 0..20
-    // {
-    //     assert(registry_state_proof.key[i] == registry_address_bytes[i]);
-    // }
-    // assert(registry_state_proof.verify_state_root(state_root_bytes));
-    // let registry_account_state = byte_value(registry_state_proof.value).0;
-    // assert(verify_account_storage(registry_account_state, registry_storage_root_bytes));
+    // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
+    let registry_address_bytes = registry_address.to_be_bytes(20);
+    for i in 0..20
+    {
+        assert(registry_state_proof.key[i] == registry_address_bytes[i]);
+    }
+    assert(registry_state_proof.verify_state_root(state_root_bytes));
+    let registry_account_state = byte_value(registry_state_proof.value).0;
+    assert(verify_account_storage(registry_account_state, registry_storage_root_bytes));
 
 
-    // // Check that NFT contract account is reachable from state root and has the given storage root
-    // let nft_contract_address_bytes = nft_contract_address.to_be_bytes(20);
-    // for i in 0..20
-    // {
-    //     assert(nft_state_proof.key[i] == nft_contract_address_bytes[i]);
-    // }
+    // Check that NFT contract account is reachable from state root and has the given storage root
+    let nft_contract_address_bytes = nft_contract_address.to_be_bytes(20);
+    for i in 0..20
+    {
+        assert(nft_state_proof.key[i] == nft_contract_address_bytes[i]);
+    }
     
-    // assert(nft_state_proof.verify_state_root(state_root_bytes));
-    // let nft_account_state = byte_value(nft_state_proof.value).0;
-    // assert(verify_account_storage(nft_account_state, nft_storage_root_bytes));
+    assert(nft_state_proof.verify_state_root(state_root_bytes));
+    let nft_account_state = byte_value(nft_state_proof.value).0;
+    assert(verify_account_storage(nft_account_state, nft_storage_root_bytes));
 }
 
 // Block hash verification assumes Shanghai fork
