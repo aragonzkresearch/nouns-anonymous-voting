@@ -559,7 +559,6 @@ pub async fn tally(
                                          }
                                          )})?;
 
-    println!("Tx Hash: {}", tx_hash);
     println!(
         "Tally submitted successfully (transaction hash {}) with the following results:\nFor: {}, Against: {}, Neutral: {}",
         tx_hash,
