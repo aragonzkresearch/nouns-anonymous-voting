@@ -1,4 +1,5 @@
 use strum_macros::EnumIter;
+use std::fmt;
 use ethers::types::{Address, Block, Bytes, H256, U64};
 
 use crate::BN254_Fr;
@@ -25,6 +26,17 @@ pub enum VoteChoice {
     No,
     Yes,
     Abstain,
+}
+
+impl fmt::Display for VoteChoice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vote_str = match self {
+            VoteChoice::No => "No",
+            VoteChoice::Yes => "Yes",
+            VoteChoice::Abstain => "Abstain"
+        };
+        write!(f, "{}", vote_str)
+    }
 }
 
 impl From<VoteChoice> for u8 {

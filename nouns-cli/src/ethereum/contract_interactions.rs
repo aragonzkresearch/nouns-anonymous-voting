@@ -291,8 +291,7 @@ pub async fn vote(
         format!("{},{}",
                 &tlcs_pbk_string[2..66], &tlcs_pbk_string[66..]))?
     };
-
-    println!("Submitting vote for proposal at ipfs://{}", ipfs_cid_string);
+    println!("Voting \"{}\" to proposal ipfs://{}", vote_choice, ipfs_cid_string);
     
     let (voter_address, registry_account_state_hash,
          registry_account_state_proof_x, nft_account_state_hash, nft_account_state_proof, delegation_proof)
