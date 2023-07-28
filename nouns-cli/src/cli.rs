@@ -24,7 +24,7 @@ pub struct GlobalCliParams {
 pub enum CliCommand {
     RegKey(PrivateKey),
     CreateProcess(H256, Duration, Duration),
-    Vote(Address, U256, U256, PrivateKey, VoteChoice),
+    Vote(Option<Address>, U256, U256, PrivateKey, VoteChoice),
     Tally(U256),
     None, // No command was chosen
 }
@@ -94,9 +94,8 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
     // Parse the command `vote`
     if let Some(matches) = matches.subcommand_matches("vote") {
-        let voter_address: &String = matches
-            .get_one("voter-address")
-            .ok_or("Missing voter's address")?;
+        let voter_address: Option<&String> = matches
+            .get_one("voter-address");
         let process_id: &String = matches
             .get_one("voting-process-id")
             .ok_or("Missing process id")?;
@@ -108,7 +107,7 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
             .get_one("vote-choice")
             .ok_or("Missing vote choice")?;
 
-        let voter_address = Address::from_str(voter_address).map_err(|e| format!("Invalid voter address: {}", e))?;
+        let voter_address = voter_address.and_then(|s| Address::from_str(s).ok());
         let process_id = U256::from_u64(
             u64::from_str(process_id.as_ref())
                 .map_err(|e| format!("Invalid process id: {:?}", e))?,
@@ -227,9 +226,8 @@ fn command_constructor() -> Command {
                     Arg::new("voter-address")
                         .short('a')
                         .long("voter-address")
-                        .help("The address of the voter who must be in the zkRegistry. This should *not* coincide with the address of the wallet used to carry out this transaction!")
+                        .help("The address of the voter who must be in the zkRegistry. This should *not* coincide with the address of the wallet used to carry out this transaction! If it is not supplied, it will be deduced from the NFT ID.")
                         .help("Example: `0xa8b2e7f501928374169283f7b2a5d3f9e0a7b3d6`")
-                        .required(true)
                 )
                 .arg(
                     Arg::new("voting-process-id")

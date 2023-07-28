@@ -251,7 +251,7 @@ pub async fn create_process(
 pub async fn vote(
     client: SignerMiddleware<Provider<Http>, LocalWallet>,
     eth_connection: Provider<Http>,
-    voter_address: Address, // The address that is enrolled to vote
+    voter_address: Option<Address>, // The address that is enrolled to vote
     nouns_voting_address: Address,
     process_id: U256,
     nft_id: U256,
@@ -294,7 +294,7 @@ pub async fn vote(
 
     println!("Submitting vote for proposal at ipfs://{}", ipfs_cid_string);
     
-    let (nft_owner, registry_account_state_hash,
+    let (voter_address, registry_account_state_hash,
          registry_account_state_proof_x, nft_account_state_hash, nft_account_state_proof, delegation_proof)
         = exec_with_progress("Fetching data from blockchain",
                              {
@@ -318,6 +318,9 @@ pub async fn vote(
                                              .map_err(|e| {
                                                  format!("Error getting the NounsTokenID from the Nouns Token contract: {e:?}")
                                              })?;
+
+                                         // If no voter address was specified, assume it is the NFT owner.
+                                         let voter_address = voter_address.unwrap_or(nft_owner);
 
                                          let census_block_number = nouns_voting
                                              .get_census_block(wrap_into!(process_id))
@@ -372,7 +375,7 @@ pub async fn vote(
                                              ));
                                          }
                                          
-                                         Ok((nft_owner,
+                                         Ok((voter_address,
                                              registry_account_state_hash, registry_account_state_proof_x,
                                              nft_account_state_hash, nft_account_state_proof, delegation_proof))
                                      })}})?;
@@ -382,7 +385,7 @@ pub async fn vote(
                                              move || {
                                                  let rng = &mut rand::thread_rng();
 
-                                                 let voter = Voter::new(nft_owner, bbjj_private_key);
+                                                 let voter = Voter::new(voter_address, bbjj_private_key);
 
                                                  voter
                                                      .gen_vote(
