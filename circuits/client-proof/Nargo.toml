@@ -1,6 +1,7 @@
 [package]
+name = "nouns-client-proof"
 authors = ["AZKR Team"]
 compiler_version = "0.5.1"
 
 [dependencies]
-trie = { tag = "nouns", git = "https://github.com/aragonzkresearch/noir-trie-proofs" }
+trie = { tag = "main", git = "https://github.com/aragonzkresearch/noir-trie-proofs" }

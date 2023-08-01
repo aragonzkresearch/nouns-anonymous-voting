@@ -78,7 +78,7 @@ As part of the vote, you need to provide the following information:
 2. The NFT ID of the Noun you want to vote on behalf of (`-n`).
 3. (Optional) The voter's address (`-a`). For an undelegated vote, this can be omitted and the address will be deduced from the NFT ID.
 4. The zkRegistry private key of the account corresponding to the voter's address (`-k`).
-5. The vote itself (`-v`). Here this is either `Yes` (`y`), `No` (`n`) or `Abstain` (`a`).
+5. The vote choice (`-v`). Here this is either `Yes` (`y`), `No` (`n`) or `Abstain` (`a`).
 
 _**Note:** Make sure that the NFT indeed exists in the Nouns Token contract._
 
