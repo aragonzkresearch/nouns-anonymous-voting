@@ -215,7 +215,6 @@ contract NounsVoting {
     /// @param a The first part of the encrypted vote
     /// @param b The second part of the encrypted vote
     /// @param n The nullifier of the encrypted vote
-    /// @param h_id The hash of the id of the vote, to prevent malleability
     /// @param proof The proof of the vote correctness
     /// @notice We should consider doing this using Account Abstraction to allow anyone to submit the vote on behalf of the voter
     function submitVote(
@@ -223,7 +222,6 @@ contract NounsVoting {
         uint256[2] memory a,
         uint256 b,
         uint256 n,
-        uint256 h_id, // TODO: Factor out
         bytes calldata proof
     ) public {
 
@@ -250,7 +248,6 @@ contract NounsVoting {
                 a,
                 b,
                 n,
-                h_id,
                 proof
             ),
             "Vote is not correct"
@@ -392,7 +389,6 @@ contract NounsVoting {
         uint256[2] memory a,
         uint256 b,
         uint256 n,
-        uint256 h_id,
         bytes calldata proof
     ) internal returns (bool) {
 
@@ -400,7 +396,6 @@ contract NounsVoting {
 	_push_uint256(a[1]);
 	_push_uint256(b);
 	_push_uint256(n);
-	_push_uint256(h_id);
 	_push_uint256(processId);
 	_push_address(address(this));
         _push_u256(bytes32(block.chainid));

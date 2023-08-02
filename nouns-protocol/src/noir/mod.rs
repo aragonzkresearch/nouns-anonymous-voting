@@ -34,7 +34,6 @@ pub(crate) struct VoteProverInput {
     pub(crate) a: BBJJ_Ec,
     pub(crate) b: BN254_Fr,
     pub(crate) n: BN254_Fr,
-    pub(crate) h_id: BN254_Fr,
     pub(crate) process_id: BN254_Fr,
     pub(crate) contract_addr: BN254_Fr,
     pub(crate) chain_id: [BN254_Fr; 2],
@@ -51,6 +50,7 @@ pub(crate) struct VoteProverInput {
     pub(crate) signed_v: Signature,
     // `tau`
     pub(crate) nft_id: [BN254_Fr; 2],
+    pub(crate) h_id: BN254_Fr,
     pub(crate) k: BBJJ_Ec,
     /// The public key of the voter's `sk` that is registered in the `BBJJ` interface in the `zkRegistry`
     pub(crate) registered_pbk: BBJJ_Ec,

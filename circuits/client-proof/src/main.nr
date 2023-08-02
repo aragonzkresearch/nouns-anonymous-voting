@@ -25,7 +25,6 @@ struct VoteProverInput<MAX_PROOF_SIZE>
     a: Point,
     b: Field, // Hash of k,v,id
     n: Field,
-    h_id: Field,
     process_id: Field,
     contract_addr: Field,
     chain_id: [Field; 2],
@@ -40,6 +39,7 @@ struct VoteProverInput<MAX_PROOF_SIZE>
     voter_address: Field,
     signed_v: Signature, // tau
     nft_id: [Field; 2],
+    h_id: Field,
     k: Point,
 
     registered_pbk: Point,
@@ -52,7 +52,6 @@ fn main(
     a: pub [Field; 2],
     b: pub Field, // Hash of k,v,id
     n: pub Field,
-    h_id: pub Field,
     process_id: pub Field,
     contract_addr: pub Field,
     chain_id: pub [Field; 2],
@@ -67,6 +66,7 @@ fn main(
     voter_address: Field,
     signed_v: Signature, // tau
     nft_id: [Field; 2],
+    h_id: Field,
     k: [Field; 2],
     registered_pbk: [Field; 2],
     registry_key_proof: TrieProof<32, DEPTH8_PROOF_SIZE, 32>,

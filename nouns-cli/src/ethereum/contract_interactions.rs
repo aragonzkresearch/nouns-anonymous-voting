@@ -44,7 +44,7 @@ abigen!(
             function nounsToken() view returns (address)
             function nextProcessId() view returns (uint256)
             function createProcess(bytes32 ipfsHash, uint64 startDelay, uint64 blockDuration, uint64 tlcsRoundNumber, uint256[2] calldata tlcsPublicKey, uint64 census_block_number, bytes32 registry_storage_root,bytes32 nft_storage_root, bytes calldata hash_proof) public returns(uint256)  
-            function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,uint256 h_id,bytes calldata proof)
+            function submitVote(uint256 processId,uint256[2] a,uint256 b,uint256 n,bytes calldata proof)
             function submitTallyResult(uint256 processId,uint256[3] memory tallyResult,bytes calldata proof) public
             function getIpfsHash(uint256 processId) public view returns (bytes32)
             function getCensusBlock(uint256 processId) public view returns (uint64)
@@ -414,14 +414,12 @@ pub async fn vote(
                                              let a = wrap_into!(ballot.a);
                                              let b = wrap_into!(ballot.b);
                                              let n = wrap_into!(ballot.n);
-                                             let h_id = wrap_into!(ballot.h_id);
 
                                              let submit_vote_request = nouns_voting.submit_vote(
                                                  wrap_into!(process_id),
                                                  wrap_into!(a),
                                                  wrap_into!(b),
                                                  wrap_into!(n),
-                                                 wrap_into!(h_id),
                                                  proof.into(),
                                              );
 

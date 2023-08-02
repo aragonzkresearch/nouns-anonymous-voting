@@ -39,9 +39,7 @@ pub struct Ballot {
     /// The second part of the encrypted vote
     pub b: BN254_Fr,
     /// The nullifier of the encrypted vote, to prevent double voting
-    pub n: BN254_Fr,
-    /// The hash of the id of the vote, to prevent malleability
-    pub h_id: BN254_Fr,
+    pub n: BN254_Fr
 }
 
 /// Represents the hints that were generated while constructing the ballot
@@ -49,6 +47,8 @@ pub struct Ballot {
 pub(crate) struct BallotHints {
     /// `sigma` representing the signature over the id of the vote
     signed_id: Signature,
+    /// `id_hash` is the hash of the NFT ID and election identifiers
+    id_hash: BN254_Fr,
     /// `tau` representing the signature over the vote choice
     signed_v: Signature,
     /// `k` representing the blinding factor of the vote
@@ -94,7 +94,6 @@ impl Voter {
             a: ballot.a.clone(),
             b: ballot.b,
             n: ballot.n,
-            h_id: ballot.h_id,
             process_id,
             contract_addr,
             chain_id,
@@ -108,6 +107,7 @@ impl Voter {
             voter_address: Wrapper(self.eth_addr).into(),
             signed_v: ballot_hints.signed_v,
             nft_id,
+            h_id: ballot_hints.id_hash,
             k: ballot_hints.k,
             registered_pbk: self.registered_sk.public(),
             registry_key_sp: storage_proofs.1,
@@ -182,10 +182,10 @@ impl Voter {
                 a: a.clone(),
                 b,
                 n: nullifier,
-                h_id: id_hash,
             },
             BallotHints {
                 signed_id,
+                id_hash,
                 signed_v,
                 k: k.clone(),
                 blinding_factor,
@@ -220,7 +220,7 @@ mod test {
             BBJJ_Ec::mock(rng),
             U256::mock(rng),
             U256::mock(rng),
-            (StorageProof::mock(rng), StorageProof::mock(rng)),
+            (StorageProof::mock(rng), StorageProof::mock(rng), StorageProof::mock(rng)),
             rng,
         )?;
 
