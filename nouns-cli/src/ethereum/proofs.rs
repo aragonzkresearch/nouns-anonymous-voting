@@ -6,7 +6,7 @@ use ethers::utils::keccak256;
 
 use nouns_protocol::noir;
 use nouns_protocol::MAX_NODE_LEN;
-use nouns_protocol::{StateProof, BlockHeader};
+use nouns_protocol::{BlockHeader, StateProof};
 
 use ethers::types::{Block, Bytes};
 use ethers::utils::rlp;
@@ -163,49 +163,51 @@ fn validate_proof(proof: &Vec<Bytes>) -> Result<Option<()>, String> {
     Ok(None)
 }
 
-
 pub(crate) async fn get_state_proof(
     eth_connection: &Provider<Http>,
     block_number: U64,
-    address: Address)
-    -> Result<StateProof, String>
-{
+    address: Address,
+) -> Result<StateProof, String> {
     // Call eth_getProof
-    let proof_data = eth_connection.get_proof(address, vec![], Some(block_number.into())).await.expect("Error getting state proof");
+    let proof_data = eth_connection
+        .get_proof(address, vec![], Some(block_number.into()))
+        .await
+        .expect("Error getting state proof");
 
     // Form proof in the form of a path
     let proof = proof_data.account_proof;
 
     // Validate proof
     if let Err(err) = validate_proof(&proof) {
-        return Err(format!("Invalid state proof for address {}: {}", address, err));
+        return Err(format!(
+            "Invalid state proof for address {}: {}",
+            address, err
+        ));
     }
 
     // Extract value in RLP form
     // TODO: Integrity check
     let value = rlp::Rlp::new(
-        proof.last() // Terminal proof node
-            .expect("Error: State proof empty")) // Proof should have been non-empty
-        .as_list::<Vec<u8>>().expect("Error: Invalid RLP encoding")
-        .last() // Extract value
-        .expect("Error: RLP list empty").clone()
-        ;
+        proof
+            .last() // Terminal proof node
+            .expect("Error: State proof empty"),
+    ) // Proof should have been non-empty
+    .as_list::<Vec<u8>>()
+    .expect("Error: Invalid RLP encoding")
+    .last() // Extract value
+    .expect("Error: RLP list empty")
+    .clone();
 
-    
-    Ok(
-        StateProof {
-            key: address,
-            proof,
-            value
-        }
-    )
+    Ok(StateProof {
+        key: address,
+        proof,
+        value,
+    })
 }
 
-pub(crate) fn header_from_block(
-    block: &Block<H256>) -> Result<BlockHeader, String>
-{
+pub(crate) fn header_from_block(block: &Block<H256>) -> Result<BlockHeader, String> {
     let fork_headsup = "Error: Should be on Shanghai fork.";
-    
+
     let mut block_header = rlp::RlpStream::new_list(17);
 
     block_header.append(&block.parent_hash);

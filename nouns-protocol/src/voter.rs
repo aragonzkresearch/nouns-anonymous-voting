@@ -39,7 +39,7 @@ pub struct Ballot {
     /// The second part of the encrypted vote
     pub b: BN254_Fr,
     /// The nullifier of the encrypted vote, to prevent double voting
-    pub n: BN254_Fr
+    pub n: BN254_Fr,
 }
 
 /// Represents the hints that were generated while constructing the ballot
@@ -112,7 +112,7 @@ impl Voter {
             registered_pbk: self.registered_sk.public(),
             registry_key_sp: storage_proofs.1,
             nft_ownership_proof: storage_proofs.0,
-            delegation_proof: storage_proofs.2
+            delegation_proof: storage_proofs.2,
         };
 
         let proof = noir::prove_vote(noir_input)?;
@@ -220,7 +220,11 @@ mod test {
             BBJJ_Ec::mock(rng),
             U256::mock(rng),
             U256::mock(rng),
-            (StorageProof::mock(rng), StorageProof::mock(rng), StorageProof::mock(rng)),
+            (
+                StorageProof::mock(rng),
+                StorageProof::mock(rng),
+                StorageProof::mock(rng),
+            ),
             rng,
         )?;
 

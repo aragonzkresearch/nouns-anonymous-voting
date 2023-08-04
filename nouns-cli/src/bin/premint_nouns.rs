@@ -1,6 +1,8 @@
 use std::{io, io::Write, str::FromStr, sync::Arc};
 
-use nouns_cli::{delegate_tokens, obtain_token_ids_to_vote, setup_connection, setup_env_parameters, NounsVoting};
+use nouns_cli::{
+    delegate_tokens, obtain_token_ids_to_vote, setup_connection, setup_env_parameters, NounsVoting,
+};
 
 use ethers::types::Address;
 
@@ -30,13 +32,13 @@ async fn main() {
 
     let mut delegate_address = String::new();
 
-    if let Ok(_) = io::stdin().read_line(&mut delegate_address)
-    {
-        if let Ok(delegate_address) = Address::from_str(&delegate_address)
-            {
-                let delegates = delegate_tokens(wallet_address, delegate_address, nouns_voting, client).await.expect("Error delegating.");
-        
-                println!("Tokens have been delegated to {}.", delegates);
-            }
+    if let Ok(_) = io::stdin().read_line(&mut delegate_address) {
+        if let Ok(delegate_address) = Address::from_str(&delegate_address) {
+            let delegates = delegate_tokens(wallet_address, delegate_address, nouns_voting, client)
+                .await
+                .expect("Error delegating.");
+
+            println!("Tokens have been delegated to {}.", delegates);
+        }
     }
 }

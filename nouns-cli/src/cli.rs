@@ -78,9 +78,7 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
         let process_duration: &String = matches
             .get_one("process-duration")
             .ok_or("Missing process duration")?;
-        let ipfs_hash: &String = matches
-            .get_one("ipfs-hash")
-            .ok_or("Missing IPFS hash")?;
+        let ipfs_hash: &String = matches.get_one("ipfs-hash").ok_or("Missing IPFS hash")?;
 
         let start_delay = parse_duration(start_delay);
         let process_duration = parse_duration(process_duration);
@@ -94,8 +92,7 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
     // Parse the command `vote`
     if let Some(matches) = matches.subcommand_matches("vote") {
-        let voter_address: Option<&String> = matches
-            .get_one("voter-address");
+        let voter_address: Option<&String> = matches.get_one("voter-address");
         let process_id: &String = matches
             .get_one("voting-process-id")
             .ok_or("Missing process id")?;
@@ -125,7 +122,13 @@ pub fn get_user_input() -> Result<(GlobalCliParams, CliCommand), String> {
 
         return Ok((
             global_cli_param,
-            CliCommand::Vote(voter_address, process_id, nft_id, nft_owner_prk, vote_choice),
+            CliCommand::Vote(
+                voter_address,
+                process_id,
+                nft_id,
+                nft_owner_prk,
+                vote_choice,
+            ),
         ));
     }
 

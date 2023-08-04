@@ -1,26 +1,37 @@
 use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
-use ethers::types::{Address, H256, StorageProof};
+use ethers::types::{Address, StorageProof, H256};
 use toml::Value;
 
-use crate::noir::{BlockHashVerifierInput, TallyProverInput, VoteProverInput, MAX_ACCOUNT_STATE_SIZE, MAX_BLOCK_HEADER_SIZE, MAX_DEPTH, MAX_NODE_LEN};
-use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BlockHeader, BN254_Fr, StateProof};
+use crate::noir::{
+    BlockHashVerifierInput, TallyProverInput, VoteProverInput, MAX_ACCOUNT_STATE_SIZE,
+    MAX_BLOCK_HEADER_SIZE, MAX_DEPTH, MAX_NODE_LEN,
+};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BlockHeader, StateProof};
 
 pub trait TomlSerializable {
     fn toml(self) -> Value;
 }
 
-impl TomlSerializable for BlockHashVerifierInput
-{
+impl TomlSerializable for BlockHashVerifierInput {
     fn toml(self) -> Value {
         let mut toml_map = toml::map::Map::new();
 
         toml_map.insert("block_hash".to_string(), self.block_hash.toml());
         toml_map.insert("block_header".to_string(), self.block_header.toml());
         toml_map.insert("registry_address".to_string(), self.registry_address.toml());
-        toml_map.insert("registry_state_proof".to_string(), self.registry_state_proof.toml());
-        toml_map.insert("registry_storage_root".to_string(), self.registry_storage_root.toml());
-        toml_map.insert("nft_contract_address".to_string(), self.nft_contract_address.toml());
+        toml_map.insert(
+            "registry_state_proof".to_string(),
+            self.registry_state_proof.toml(),
+        );
+        toml_map.insert(
+            "registry_storage_root".to_string(),
+            self.registry_storage_root.toml(),
+        );
+        toml_map.insert(
+            "nft_contract_address".to_string(),
+            self.nft_contract_address.toml(),
+        );
         toml_map.insert("nft_state_proof".to_string(), self.nft_state_proof.toml());
         toml_map.insert("nft_storage_root".to_string(), self.nft_storage_root.toml());
 
@@ -104,10 +115,16 @@ impl TomlSerializable for VoteProverInput {
         map.insert("nft_id".to_string(), self.nft_id.toml());
         map.insert("k".to_string(), self.k.toml());
         map.insert("registered_pbk".to_string(), self.registered_pbk.toml());
-        map.insert("registry_key_proof".to_string(), self.registry_key_sp.toml());
-        map.insert("nft_ownership_proof".to_string(), self.nft_ownership_proof.toml());
+        map.insert(
+            "registry_key_proof".to_string(),
+            self.registry_key_sp.toml(),
+        );
+        map.insert(
+            "nft_ownership_proof".to_string(),
+            self.nft_ownership_proof.toml(),
+        );
         map.insert("delegation_proof".to_string(), self.delegation_proof.toml());
-        
+
         Value::Table(map)
     }
 }
@@ -280,7 +297,7 @@ impl TomlSerializable for StateProof {
         assert!(value_len <= MAX_ACCOUNT_STATE_SIZE);
 
         let mut value = vec![0u8; MAX_ACCOUNT_STATE_SIZE - value_len];
-        
+
         value.append(&mut self.value.clone());
 
         map.insert("key".to_string(), key.to_vec().toml());
@@ -288,7 +305,6 @@ impl TomlSerializable for StateProof {
         map.insert("depth".to_string(), depth.toml());
 
         toml::Value::Table(map)
-
     }
 }
 

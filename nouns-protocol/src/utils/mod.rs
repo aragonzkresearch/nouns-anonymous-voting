@@ -1,6 +1,6 @@
-use strum_macros::EnumIter;
-use std::fmt;
 use ethers::types::{Address, Block, Bytes, H256, U64};
+use std::fmt;
+use strum_macros::EnumIter;
 
 use crate::BN254_Fr;
 
@@ -33,7 +33,7 @@ impl fmt::Display for VoteChoice {
         let vote_str = match self {
             VoteChoice::No => "No",
             VoteChoice::Yes => "Yes",
-            VoteChoice::Abstain => "Abstain"
+            VoteChoice::Abstain => "Abstain",
         };
         write!(f, "{}", vote_str)
     }

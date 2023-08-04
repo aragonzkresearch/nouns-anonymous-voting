@@ -1,7 +1,7 @@
 use babyjubjub_ark::Signature;
-use ethers::types::{Address, H256, StorageProof};
+use ethers::types::{Address, StorageProof, H256};
 
-use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BlockHeader, BN254_Fr, StateProof};
+use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BlockHeader, StateProof};
 
 pub mod toml;
 
@@ -13,7 +13,7 @@ pub const MAX_ACCOUNT_STATE_SIZE: usize = 134;
 
 // Maximum block header size in bytes
 pub const MAX_BLOCK_HEADER_SIZE: usize = 630;
-    
+
 // The maximum byte length of a node
 pub const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximum trie proof size.
 
@@ -26,7 +26,7 @@ pub struct BlockHashVerifierInput {
     pub registry_storage_root: H256,
     pub nft_contract_address: Address,
     pub nft_state_proof: StateProof,
-    pub nft_storage_root: H256
+    pub nft_storage_root: H256,
 }
 /// The input to the Noir Vote Prover Circuit
 pub(crate) struct VoteProverInput {
@@ -83,7 +83,8 @@ pub fn prove_block_hash(input: BlockHashVerifierInput) -> Result<Vec<u8>, String
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input)
+        .expect("Error: Failed to generate proof.");
 
     Ok(proof)
 }
@@ -103,7 +104,8 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input)
+        .expect("Error: Failed to generate proof.");
 
     Ok(proof)
 }
@@ -129,34 +131,41 @@ authors = []
 
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input).expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input)
+        .expect("Error: Failed to generate proof.");
 
     Ok(proof)
 }
 
 /// A function for compiling a Noir program consisting of only a `main.nr`.
 /// The circuit (i.e. `main.nr`) and the `Nargo.toml` file are passed in a string slices.
-pub fn run_singleton_noir_project(circuit_config_toml: &str, circuit: &str, prover_toml: ::toml::Value) -> Result<Vec<u8>, std::io::Error>
-{
+pub fn run_singleton_noir_project(
+    circuit_config_toml: &str,
+    circuit: &str,
+    prover_toml: ::toml::Value,
+) -> Result<Vec<u8>, std::io::Error> {
     // Extract package name from Nargo.toml (required to read proof back in)
     let pkg_name = {
-        let pkg = circuit_config_toml.parse::<::toml::Table>()
-        .expect("Error parsing circuit config Toml.")
-        .get("package")
-            .expect("Error: Circuit config is missing `package` field.").to_owned();
-        let wrapped_pkg_name = match pkg
-        {
-            ::toml::Value::Table(t) => t.get("name").expect("Error: Circuit config is missing package name!").to_owned(),
-            _ => panic!("Nargo.toml invalid!")
+        let pkg = circuit_config_toml
+            .parse::<::toml::Table>()
+            .expect("Error parsing circuit config Toml.")
+            .get("package")
+            .expect("Error: Circuit config is missing `package` field.")
+            .to_owned();
+        let wrapped_pkg_name = match pkg {
+            ::toml::Value::Table(t) => t
+                .get("name")
+                .expect("Error: Circuit config is missing package name!")
+                .to_owned(),
+            _ => panic!("Nargo.toml invalid!"),
         };
 
-        match wrapped_pkg_name
-        {
+        match wrapped_pkg_name {
             ::toml::Value::String(s) => s,
-            _ => panic!("Nargo.toml invalid!")
+            _ => panic!("Nargo.toml invalid!"),
         }
     };
-    
+
     // Prepare temporary directory
     let tmp_dir = tempdir::TempDir::new("nouns")?;
 
@@ -171,19 +180,25 @@ pub fn run_singleton_noir_project(circuit_config_toml: &str, circuit: &str, prov
 
     // Write `Prover.toml`
     let prover_toml_path = tmp_dir.path().join("Prover.toml");
-    let prover_toml_string = ::toml::to_string_pretty(&prover_toml).expect("Failed to construct Prover.toml.");
+    let prover_toml_string =
+        ::toml::to_string_pretty(&prover_toml).expect("Failed to construct Prover.toml.");
     std::fs::write(prover_toml_path, prover_toml_string)?;
 
-    
     // Generate proof
     std::process::Command::new("nargo")
         .current_dir(tmp_dir.path())
-        .arg("prove").output()?;
+        .arg("prove")
+        .output()?;
 
     // Read proof
-    let proof_string = std::fs::read_to_string(tmp_dir.path().join("proofs").join(format!("{}.proof", pkg_name)))?;
+    let proof_string = std::fs::read_to_string(
+        tmp_dir
+            .path()
+            .join("proofs")
+            .join(format!("{}.proof", pkg_name)),
+    )?;
     let proof = hex::decode(proof_string).expect("Error decoding proof string");
-    
+
     Ok(proof)
 }
 

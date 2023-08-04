@@ -214,7 +214,6 @@ mod test {
             process_id,
             contract_addr,
         )
-
     }
 
     #[test]
