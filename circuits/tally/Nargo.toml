@@ -1,5 +1,5 @@
 [package]
-name = "nouns-tally-lib"
+name = "nouns_tally_lib"
 authors = [""]
 compiler_version = "0.5.1"
 

@@ -1,5 +1,5 @@
 [package]
-name = "nouns-512-voters"
+name = "nouns_512_voters"
 authors = [""]
 compiler_version = "0.6.0"
 

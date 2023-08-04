@@ -1,5 +1,5 @@
 [package]
-name = "nouns-client-proof"
+name = "nouns_client_proof"
 authors = ["AZKR Team"]
 compiler_version = "0.5.1"
 

@@ -1,5 +1,5 @@
 [package]
-name = "nouns-hash-proof"
+name = "nouns_hash_proof"
 authors = [""]
 compiler_version = "0.7.1"
 
