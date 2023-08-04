@@ -72,6 +72,9 @@ pub(crate) struct TallyProverInput {
     pub(crate) v: Vec<VoteChoice>,
 }
 
+/// Generates a proof that two storage roots with associated Ethereum addresses
+/// are consistent with a given block hash in the sense that they possess valid
+/// state proofs with root contained in a block header with that block hash.
 #[cfg(not(feature = "mock-prover"))]
 pub fn prove_block_hash(input: BlockHashVerifierInput) -> Result<Vec<u8>, String> {
     let voter_circuit = include_str!("../../../circuits/hash_proof/src/main.nr");
@@ -105,6 +108,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     Ok(proof)
 }
 
+/// Generates a proof for a tally subject to the same caveat as the `prove_vote` function.
 #[cfg(not(feature = "mock-prover"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     let mut tally_circuit = "\
@@ -118,6 +122,7 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
 ".to_string();
     tally_circuit.push_str(include_str!("../../../circuits/tally/src/lib.nr"));
     let tally_circuit_config_toml = "[package]
+name = \"tally_proof\"
 authors = []
 
 [dependencies]";
@@ -129,26 +134,54 @@ authors = []
     Ok(proof)
 }
 
+/// A function for compiling a Noir program consisting of only a `main.nr`.
+/// The circuit (i.e. `main.nr`) and the `Nargo.toml` file are passed in a string slices.
 pub fn run_singleton_noir_project(circuit_config_toml: &str, circuit: &str, prover_toml: ::toml::Value) -> Result<Vec<u8>, std::io::Error>
 {
+    // Extract package name from Nargo.toml (required to read proof back in)
+    let pkg_name = {
+        let pkg = circuit_config_toml.parse::<::toml::Table>()
+        .expect("Error parsing circuit config Toml.")
+        .get("package")
+            .expect("Error: Circuit config is missing `package` field.").to_owned();
+        let wrapped_pkg_name = match pkg
+        {
+            ::toml::Value::Table(t) => t.get("name").expect("Error: Circuit config is missing package name!").to_owned(),
+            _ => panic!("Nargo.toml invalid!")
+        };
+
+        match wrapped_pkg_name
+        {
+            ::toml::Value::String(s) => s,
+            _ => panic!("Nargo.toml invalid!")
+        }
+    };
+    
+    // Prepare temporary directory
     let tmp_dir = tempdir::TempDir::new("nouns")?;
+
+    // Write Nargo.toml
     let circuit_config_toml_path = tmp_dir.path().join("Nargo.toml");
     std::fs::write(circuit_config_toml_path, circuit_config_toml)?;
-    
+
+    // Create src directory and place `main.nr` in it
     std::fs::create_dir(tmp_dir.path().join("src"))?;
     let circuit_path = tmp_dir.path().join("src").join("main.nr");
     std::fs::write(circuit_path, circuit)?;
 
+    // Write `Prover.toml`
     let prover_toml_path = tmp_dir.path().join("Prover.toml");
     let prover_toml_string = ::toml::to_string_pretty(&prover_toml).expect("Failed to construct Prover.toml.");
     std::fs::write(prover_toml_path, prover_toml_string)?;
 
-    let mut proof_string = std::process::Command::new("nargo")
-        .current_dir(tmp_dir.path())
-        .arg("prove")
-        .output()?.stdout;
     
-    proof_string.pop(); // Pop off newline
+    // Generate proof
+    std::process::Command::new("nargo")
+        .current_dir(tmp_dir.path())
+        .arg("prove").output()?;
+
+    // Read proof
+    let proof_string = std::fs::read_to_string(tmp_dir.path().join("proofs").join(format!("{}.proof", pkg_name)))?;
     let proof = hex::decode(proof_string).expect("Error decoding proof string");
     
     Ok(proof)
