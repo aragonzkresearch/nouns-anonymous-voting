@@ -125,6 +125,7 @@ pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
     tally_circuit.push_str(include_str!("../../../circuits/tally/src/lib.nr"));
     let tally_circuit_config_toml = "[package]
 name = \"tally_proof\"
+type = \"bin\"
 authors = []
 
 [dependencies]";

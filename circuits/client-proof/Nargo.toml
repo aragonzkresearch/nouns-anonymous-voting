@@ -1,5 +1,6 @@
 [package]
 name = "nouns_client_proof"
+type = "bin"
 authors = ["AZKR Team"]
 compiler_version = "0.5.1"
 
