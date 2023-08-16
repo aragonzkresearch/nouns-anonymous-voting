@@ -1,5 +1,6 @@
 use babyjubjub_ark::Signature;
 use ethers::types::{Address, StorageProof, H256};
+use std::io::{Error, ErrorKind};
 
 use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BlockHeader, StateProof};
 
@@ -83,8 +84,7 @@ pub fn prove_block_hash(input: BlockHashVerifierInput) -> Result<Vec<u8>, String
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input)
-        .expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).map_err(|e| format!("Failed to generate proof: {}", e))?;
 
     Ok(proof)
 }
@@ -104,8 +104,7 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
     // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input)
-        .expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(voter_circuit_config_toml, voter_circuit, prover_input).map_err(|e| format!("Failed to generate proof: {}", e))?;
 
     Ok(proof)
 }
@@ -132,8 +131,7 @@ authors = []
 
     let prover_input = self::toml::TomlSerializable::toml(input);
 
-    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input)
-        .expect("Error: Failed to generate proof.");
+    let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input).map_err(|e| format!("Failed to generate proof: {}", e))?;
 
     Ok(proof)
 }
@@ -186,14 +184,15 @@ pub fn run_singleton_noir_project(
     std::fs::write(prover_toml_path, prover_toml_string)?;
 
     // Generate proof
-    std::process::Command::new("nargo")
-        .current_dir(tmp_dir.path())
+    let prove_cmd_stderr = String::from_utf8(std::process::Command::new("nargo")
+        .current_dir(&tmp_dir.path())
         .arg("prove")
-        .output()?;
+        .output()?.stderr).expect("String conversion error");
+    if !prove_cmd_stderr.is_empty() { return Err(Error::new(ErrorKind::Other, prove_cmd_stderr)); }
 
     // Read proof
     let proof_string = std::fs::read_to_string(
-        tmp_dir
+        &tmp_dir
             .path()
             .join("proofs")
             .join(format!("{}.proof", pkg_name)),

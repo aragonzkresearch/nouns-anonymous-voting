@@ -571,12 +571,22 @@ pub async fn tally(
                                 e
                             )
                         })?;
-                    let keypair_strings = tlcs::get_bjj_keypair_strings(round_number).await?;
-                    if keypair_strings.1 == "" {
-                        Err("The TLCS private key is not yet available.".to_string())
-                    } else {
-                        Ok(keypair_strings.1)
+                    // Fetch LOE data, triggering computation of the private key.
+                    tlcs::fetch_loe_data(round_number).await?;
+                    // Wait for private key computation
+                    let mut priv_key: Result<String, String> = Err("The TLCS private key cannot be obtained.".to_string());
+                    for _i in 0..10
+                    {
+                        let keypair_strings = tlcs::get_bjj_keypair_strings(round_number).await?;
+                        if keypair_strings.1 != "" {
+                            priv_key = Ok(keypair_strings.1);
+                            break;
+                        }
+                        
+                        thread::sleep(Duration::from_millis(tlcs::LOE_DELAY));
                     }
+                    
+                    priv_key
                 })
             }
         })?;
@@ -617,17 +627,23 @@ pub async fn tally(
                             log.transaction_hash
                         ));
                     }
-                    let a_x: U256 = wrap_into!(log.topics[1].into_uint());
-                    let a_y: U256 = wrap_into!(log.topics[2].into_uint());
-                    let b: U256 = wrap_into!(log.topics[3].into_uint());
 
-                    let truncated_ballot = TruncatedBallot {
-                        a: wrap_into!([a_x, a_y]),
-                        b: wrap_into!(b),
-                    };
+                    let log_process_id: U256 = wrap_into!(H256::from(<[u8;32]>::try_from(log.data.as_ref()).map_err(|e| format!("Could not convert log process ID to byte array: {}", e))?).into_uint());
+                    if log_process_id == process_id
+                    {
+                        let a_x: U256 = wrap_into!(log.topics[1].into_uint());
+                        let a_y: U256 = wrap_into!(log.topics[2].into_uint());
+                        let b: U256 = wrap_into!(log.topics[3].into_uint());
 
-                    ballots.push(truncated_ballot);
+                        let truncated_ballot = TruncatedBallot {
+                            a: wrap_into!([a_x, a_y]),
+                            b: wrap_into!(b),
+                        };
+
+                        ballots.push(truncated_ballot);
+                    }
                 }
+                
                 // Get the ballot hash
                 let ballot_hash = nouns_voting
                     .get_ballots_hash(wrap_into!(process_id))
@@ -1016,7 +1032,9 @@ pub(crate) mod tlcs {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     const NEW_ROUND_API: &str = "https://demo.timelock.zone/newround/";
+    const LOE_DATA_API: &str = "https://demo.timelock.zone/loedata/";
     const KEYPAIR_API: &str = "https://api.timelock.zone/azkr/tlcs/v1beta1/keypairs/round/";
+    pub(crate) const LOE_DELAY: u64 = 10000;
 
     #[derive(Serialize, Deserialize, Debug)]
     struct Keypairs {
@@ -1042,6 +1060,7 @@ pub(crate) mod tlcs {
             .as_secs()
     }
 
+    /// This function requests a TLCS keypair.
     pub(crate) async fn request_tlcs_key(
         start_delay: u64,
         process_duration: u64,
@@ -1063,6 +1082,21 @@ pub(crate) mod tlcs {
         Ok(round_number)
     }
 
+    /// This function fetches LOE data, which is required for computing the TLCS private key (server side).
+    pub(crate) async fn fetch_loe_data(
+        round_number: u64
+    ) -> Result<(), String> {
+        reqwest::get(LOE_DATA_API.to_string() + &round_number.to_string())
+            .await
+            .map_err(|e| format!("{:?}", e))?
+            .text()
+            .await
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
+    }
+
+    /// This function fetches the TLCS keypair as strings.
     pub(crate) async fn get_bjj_keypair_strings(
         round_number: u64,
     ) -> Result<(String, String), String> {
