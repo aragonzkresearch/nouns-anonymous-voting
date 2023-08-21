@@ -1,8 +1,0 @@
-[package]
-name = "nouns_1024_voters"
-type = "bin"
-authors = [""]
-compiler_version = "0.6.0"
-
-[dependencies]
-tally = { path = "../tally" }

@@ -10,10 +10,11 @@ This is a work in progress. Please do not use this in production.
 
 ### Pre-requisites
 1. Install Noir.
-2. Run `prep-contracts.sh` and recompile in case any changes have been made to the underlying circuits.
-3. Deploy the [Nouns voting contract](contracts/README.md) to an Ethereum network.
-4. Copy the `.env.template` file to `.env` and fill in the values.
-5. Have the Nouns CLI installed or have a source code to build it from.
+2. By default, we assume that there will be at most 256 voters. To change this, edit `max-num-voters` and run `prep-tally-circuit.sh`.
+3. Run `prep-contracts.sh` and recompile in case any changes have been made to the underlying circuits, e.g. if the maximum number of voters was changed.
+4. Deploy the [Nouns voting contract](contracts/README.md) to an Ethereum network.
+5. Copy the `.env.template` file to `.env` and fill in the values.
+6. Compile the Nouns CLI by running `cargo build --release` or `cargo install --path nouns-cli` if you wish to install it.
 
 If at any point of time you see that some of the environment variables are not being picked up, try
 running `source .env` to load them into the current shell.

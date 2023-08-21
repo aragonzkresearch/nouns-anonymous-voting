@@ -46,12 +46,11 @@ impl TomlSerializable for TallyProverInput {
         // Need to include the number of voters in output
         let num_voters = self.v.len();
 
-        // Figure out whether num_voters is <= 16, 256, 512, 1024, 2048
-        let padded_len: usize = [16, 256, 512, 1024, 2048]
-            .into_iter()
-            .filter(|x| x >= &num_voters)
-            .next()
-            .expect("Error: There are too many voters.");
+        // Maximum number of voters is fixed by the underlying circuit,
+        // so we have to pad. First obtain this value.
+        let padded_len: usize = crate::noir::max_num_voters();
+
+        assert!(num_voters <= padded_len, "Number of voters exceeds maximum!");
 
         let pad_vec = |v: Vec<BN254_Fr>| {
             v.into_iter()

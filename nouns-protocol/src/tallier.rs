@@ -217,10 +217,17 @@ mod test {
     }
 
     #[test]
-    fn test10() {
+    fn tally10() {
         let rng = &mut ark_std::test_rng();
 
         gen_tally(rng, 10).unwrap();
+    }
+
+    #[test]
+    fn tally200() {
+        let rng = &mut ark_std::test_rng();
+
+        gen_tally(rng, 200).unwrap();
     }
 
     #[test]

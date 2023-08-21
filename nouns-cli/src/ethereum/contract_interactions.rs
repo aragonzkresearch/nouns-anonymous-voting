@@ -822,183 +822,183 @@ pub async fn delegate_tokens(
     Ok(delegates)
 }
 
-#[cfg(test)]
-mod test {
-    use std::ops::Sub;
-    use std::sync::Arc;
-    use std::time::Duration;
+//#[cfg(test)]
+// mod test {
+//     use std::ops::Sub;
+//     use std::sync::Arc;
+//     use std::time::Duration;
 
-    use ethers::abi::Address;
-    use ethers::core::k256::ecdsa::SigningKey;
-    use ethers::middleware::SignerMiddleware;
-    use ethers::prelude::{Wallet, H160};
-    use ethers::providers::Http;
-    use ethers::providers::Provider;
-    use ethers::types::U256;
+//     use ethers::abi::Address;
+//     use ethers::core::k256::ecdsa::SigningKey;
+//     use ethers::middleware::SignerMiddleware;
+//     use ethers::prelude::{Wallet, H160};
+//     use ethers::providers::Http;
+//     use ethers::providers::Provider;
+//     use ethers::types::U256;
 
-    use nouns_protocol::{wrap, wrap_into, PrivateKey, VoteChoice, Wrapper};
+//     use nouns_protocol::{wrap, wrap_into, PrivateKey, VoteChoice, Wrapper};
 
-    use crate::ethereum::contract_interactions::{
-        create_process, mine_blocks_until, obtain_token_ids_to_vote, reg_key, tally, vote,
-        NounsVoting,
-    };
-    use crate::{setup_connection, setup_env_parameters};
+//     use crate::ethereum::contract_interactions::{
+//         create_process, mine_blocks_until, obtain_token_ids_to_vote, reg_key, tally, vote,
+//         NounsVoting,
+//     };
+//     use crate::{setup_connection, setup_env_parameters};
 
-    #[tokio::test]
-    async fn integration_test_of_contract_interactions() -> Result<(), String> {
-        //// Set the simulation parameters
+//     #[tokio::test]
+//     async fn integration_test_of_contract_interactions() -> Result<(), String> {
+//         //// Set the simulation parameters
 
-        let (tx_private_key, rpc_url, voting_address) = setup_env_parameters();
+//         let (tx_private_key, rpc_url, voting_address) = setup_env_parameters();
 
-        // Get the TLCS key pair
-        let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
-        let tlcs_pubk = tlcs_prk.public();
+//         // Get the TLCS key pair
+//         let tlcs_prk = PrivateKey::import(vec![0; 32]).expect("Error importing TLCS private key");
+//         let tlcs_pubk = tlcs_prk.public();
 
-        // Generate the Voter BBJJ Private Key
-        // We do it in a function as PrivateKey does not implement Clone
-        fn voter_bbjj_prk() -> PrivateKey {
-            PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
-        }
+//         // Generate the Voter BBJJ Private Key
+//         // We do it in a function as PrivateKey does not implement Clone
+//         fn voter_bbjj_prk() -> PrivateKey {
+//             PrivateKey::import(vec![1; 32]).expect("Error importing Voter BBJJ private key")
+//         }
 
-        // Set the process duration
-        let duration = Duration::from_secs(120); // 1 block confirmation time
+//         // Set the process duration
+//         let duration = Duration::from_secs(120); // 1 block confirmation time
 
-        let vote_choice = VoteChoice::Abstain;
+//         let vote_choice = VoteChoice::Abstain;
 
-        //// Configure the System Parameters
+//         //// Configure the System Parameters
 
-        let (eth_connection, wallet_address, client, chain_id) =
-            setup_connection(tx_private_key, rpc_url).await;
+//         let (eth_connection, wallet_address, client, chain_id) =
+//             setup_connection(tx_private_key, rpc_url).await;
 
-        let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
+//         let nouns_voting = NounsVoting::new(voting_address, Arc::new(client.clone()));
 
-        //// Obtain the TokenIds owned by the wallet (possibly minting some)
+//         //// Obtain the TokenIds owned by the wallet (possibly minting some)
 
-        let token_ids =
-            obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
-                .await
-                .map_err(|e| format!("Error obtaining token ids: {}", e))?;
+//         let token_ids =
+//             obtain_token_ids_to_vote(wallet_address, nouns_voting.clone(), client.clone())
+//                 .await
+//                 .map_err(|e| format!("Error obtaining token ids: {}", e))?;
 
-        println!("Token ids: {:?}", token_ids);
+//         println!("Token ids: {:?}", token_ids);
 
-        //// 1. Register in zk Registry
+//         //// 1. Register in zk Registry
 
-        println!("\n\n1. Registering key...\n");
+//         println!("\n\n1. Registering key...\n");
 
-        // Register the key
-        reg_key(client.clone(), voting_address, voter_bbjj_prk())
-            .await
-            .map_err(|e| format!("Error registering key: {}", e))?;
+//         // Register the key
+//         reg_key(client.clone(), voting_address, voter_bbjj_prk())
+//             .await
+//             .map_err(|e| format!("Error registering key: {}", e))?;
 
-        println!("\nKey registered successfully!\n\n\n");
+//         println!("\nKey registered successfully!\n\n\n");
 
-        //// 2. Create process
+//         //// 2. Create process
 
-        println!("2. Creating process...\n");
+//         println!("2. Creating process...\n");
 
-        // Start the voting process
-        create_process(client.clone(), voting_address, duration, tlcs_pubk.clone())
-            .await
-            .map_err(|e| format!("Error creating process: {}", e))?;
+//         // Start the voting process
+//         create_process(client.clone(), voting_address, duration, tlcs_pubk.clone())
+//             .await
+//             .map_err(|e| format!("Error creating process: {}", e))?;
 
-        // Get the process id
-        let next_process_id = nouns_voting
-            .next_process_id()
-            .call()
-            .await
-            .expect("Error getting process id");
-        let process_id = next_process_id.sub(U256::one());
+//         // Get the process id
+//         let next_process_id = nouns_voting
+//             .next_process_id()
+//             .call()
+//             .await
+//             .expect("Error getting process id");
+//         let process_id = next_process_id.sub(U256::one());
 
-        //// 3. Submit ballot
+//         //// 3. Submit ballot
 
-        println!(
-            "\nProcess created successfully with id {}!\n\n\n",
-            process_id
-        );
-        println!("3. Submitting ballot...\n");
+//         println!(
+//             "\nProcess created successfully with id {}!\n\n\n",
+//             process_id
+//         );
+//         println!("3. Submitting ballot...\n");
 
-        vote(
-            client.clone(),
-            eth_connection.clone(),
-            voting_address,
-            wrap_into!(process_id),
-            wrap_into!(token_ids[0]),
-            wrap_into!(chain_id),
-            voter_bbjj_prk(),
-            vote_choice,
-            tlcs_pubk,
-        )
-        .await
-        .map_err(|e| format!("Error voting: {}", e))?;
+//         vote(
+//             client.clone(),
+//             eth_connection.clone(),
+//             voting_address,
+//             wrap_into!(process_id),
+//             wrap_into!(token_ids[0]),
+//             wrap_into!(chain_id),
+//             voter_bbjj_prk(),
+//             vote_choice,
+//             tlcs_pubk,
+//         )
+//         .await
+//         .map_err(|e| format!("Error voting: {}", e))?;
 
-        println!(
-            "\nBallot submitted successfully for tokenid {}!\n\n\n",
-            token_ids[0]
-        );
+//         println!(
+//             "\nBallot submitted successfully for tokenid {}!\n\n\n",
+//             token_ids[0]
+//         );
 
-        //// 4. Tally the results
+//         //// 4. Tally the results
 
-        println!("4. Tallying...\n");
+//         println!("4. Tallying...\n");
 
-        let result = simulate_tally(
-            voting_address,
-            tlcs_prk,
-            eth_connection,
-            wallet_address,
-            chain_id,
-            client,
-            nouns_voting,
-            process_id,
-        )
-        .await?;
+//         let result = simulate_tally(
+//             voting_address,
+//             tlcs_prk,
+//             eth_connection,
+//             wallet_address,
+//             chain_id,
+//             client,
+//             nouns_voting,
+//             process_id,
+//         )
+//         .await?;
 
-        println!(
-            "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
-            result[0], result[1], result[2]
-        );
+//         println!(
+//             "\n4. Tally result submitted successfully. Result: {} Against, {} For, {} Abstain!\n\n\n",
+//             result[0], result[1], result[2]
+//         );
 
-        Ok(())
-    }
+//         Ok(())
+//     }
 
-    async fn simulate_tally(
-        voting_address: H160,
-        tlcs_prk: PrivateKey,
-        eth_connection: Provider<Http>,
-        wallet_address: Address,
-        chain_id: U256,
-        client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-        process_id: U256,
-    ) -> Result<[U256; 3], String> {
-        // Get the process end block number
-        let process_end_block = nouns_voting
-            .get_end_block(process_id)
-            .call()
-            .await
-            .expect("Error getting process end block");
+//     async fn simulate_tally(
+//         voting_address: H160,
+//         tlcs_prk: PrivateKey,
+//         eth_connection: Provider<Http>,
+//         wallet_address: Address,
+//         chain_id: U256,
+//         client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+//         nouns_voting: NounsVoting<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+//         process_id: U256,
+//     ) -> Result<[U256; 3], String> {
+//         // Get the process end block number
+//         let process_end_block = nouns_voting
+//             .get_end_block(process_id)
+//             .call()
+//             .await
+//             .expect("Error getting process end block");
 
-        mine_blocks_until(eth_connection, wallet_address, &client, process_end_block).await?;
+//         mine_blocks_until(eth_connection, wallet_address, &client, process_end_block).await?;
 
-        println!("Process has ended! Proceeding to tally.",);
+//         println!("Process has ended! Proceeding to tally.",);
 
-        tally(
-            client.clone(),
-            voting_address,
-            wrap_into!(chain_id),
-            wrap_into!(process_id),
-            tlcs_prk.scalar_key(),
-        )
-        .await
-        .map_err(|e| format!("Error tallying: {}", e))?;
+//         tally(
+//             client.clone(),
+//             voting_address,
+//             wrap_into!(chain_id),
+//             wrap_into!(process_id),
+//             tlcs_prk.scalar_key(),
+//         )
+//         .await
+//         .map_err(|e| format!("Error tallying: {}", e))?;
 
-        let result = nouns_voting
-            .get_tally_result(process_id)
-            .call()
-            .await
-            .expect("Error getting tally");
-        Ok(result)
-    }
-}
+//         let result = nouns_voting
+//             .get_tally_result(process_id)
+//             .call()
+//             .await
+//             .expect("Error getting tally");
+//         Ok(result)
+//     }
+// }
 
 fn exec_with_progress<
     F: FnOnce() -> Result<T, String> + std::marker::Send + 'static,

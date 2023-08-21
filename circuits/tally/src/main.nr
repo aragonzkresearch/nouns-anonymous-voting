@@ -1,7 +1,14 @@
 use dep::std::hash::poseidon::bn254;
 use dep::std::hash::keccak256;
 
-// TODO: election_id in a struct maybe
+// Maximum number of voters
+global MAX_VOTERS: Field = 256;
+
+fn main(b_k: pub Field, process_id: pub Field, contract_addr: pub Field, chain_id: pub [Field; 2], vote_count: pub [Field; 3], num_voters: Field, k_x: [Field; MAX_VOTERS], k_y: [Field; MAX_VOTERS], v: [Field; MAX_VOTERS])
+{
+    assert(verify_tally(b_k, process_id, contract_addr, chain_id, vote_count, num_voters, k_x, k_y, v));
+}
+
 fn verify_tally<N>(
     b_k: Field,
     // Election identifiers

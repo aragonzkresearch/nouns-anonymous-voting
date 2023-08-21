@@ -112,23 +112,10 @@ pub(crate) fn prove_vote(input: VoteProverInput) -> Result<Vec<u8>, String> {
 /// Generates a proof for a tally subject to the same caveat as the `prove_vote` function.
 #[cfg(not(feature = "mock-prover"))]
 pub(crate) fn prove_tally(input: TallyProverInput) -> Result<Vec<u8>, String> {
-    let mut tally_circuit = "\
-    global MAX_VOTERS: Field = 16;
+    let tally_circuit = include_str!("../../../circuits/tally/src/main.nr");
+    let tally_circuit_config_toml = include_str!("../../../circuits/tally/Nargo.toml");
 
-    fn main(b_k: pub Field, process_id: pub Field, contract_addr: pub Field, chain_id: pub [Field; 2], vote_count: pub [Field; 3], num_voters: Field, k_x: [Field; MAX_VOTERS], k_y: [Field; MAX_VOTERS], v: [Field; MAX_VOTERS])
-{
-    assert(verify_tally(b_k, process_id, contract_addr, chain_id, vote_count, num_voters, k_x, k_y, v));
-}
-
-".to_string();
-    tally_circuit.push_str(include_str!("../../../circuits/tally/src/lib.nr"));
-    let tally_circuit_config_toml = "[package]
-name = \"tally_proof\"
-type = \"bin\"
-authors = []
-
-[dependencies]";
-
+    // Serialize the input into a toml string
     let prover_input = self::toml::TomlSerializable::toml(input);
 
     let proof = run_singleton_noir_project(tally_circuit_config_toml, &tally_circuit, prover_input).map_err(|e| format!("Failed to generate proof: {}", e))?;
@@ -200,6 +187,12 @@ pub fn run_singleton_noir_project(
     let proof = hex::decode(proof_string).expect("Error decoding proof string");
 
     Ok(proof)
+}
+
+fn max_num_voters() -> usize
+{
+    let max_num_voters: usize = include_str!("../../../max-num-voters").trim().parse().expect("Error parsing max_num_voters string!");
+    max_num_voters
 }
 
 #[cfg(feature = "mock-prover")]

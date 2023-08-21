@@ -1,5 +1,5 @@
 #!/bin/bash
-circuit_dirs=("hash_proof" "client-proof" "16_voters")
+circuit_dirs=("hash_proof" "client-proof" "tally")
 circuits=("Hash" "Vote" "Tally")
 HASH_CONTRACT_PATH="circuits/hash_proof/contract"
 

@@ -1,6 +1,6 @@
 [package]
 name = "nouns_tally_lib"
-type = "lib"
+type = "bin"
 authors = [""]
 compiler_version = "0.5.1"
 
