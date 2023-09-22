@@ -9,6 +9,7 @@ global MAX_ACCOUNT_STATE_SIZE: Field = 134; // Including RLP headers
 
 fn main(
     block_hash: pub [Field; 2],
+    block_number: pub u64,
     block_header: [u8; MAX_BLOCK_HEADER_SIZE],
     registry_address: pub Field,
     registry_state_proof: TrieProof<20, MAX_PROOF_SIZE, MAX_ACCOUNT_STATE_SIZE>,
@@ -24,7 +25,7 @@ fn main(
     let nft_storage_root_bytes = u256_from_fields(nft_storage_root);
     
     // Check that block header and block hash are consistent and return state root
-    let state_root_bytes = check_block(block_hash_bytes, block_header);
+    let state_root_bytes = check_block(block_hash_bytes, block_number, block_header);
 
     // Check that zkRegistry contract account corresponds to the given address is reachable from state root and has the given storage root
     let registry_address_bytes = registry_address.to_be_bytes(20);
@@ -52,6 +53,7 @@ fn main(
 // Block hash verification assumes Shanghai fork
 fn check_block<N>(
     block_hash: [u8; 32],
+    block_number: u64,
     block_header: [u8; N])
     -> [u8; 32]
 {
@@ -86,6 +88,27 @@ fn check_block<N>(
     for i in 0..32
     {
         state_root[i] = block_header[sr_off + i];
+    }
+
+    // Extract block number
+    let mut header_number = [0; 8];
+    let hn_padding = 8 - rlp_list.length[8];
+    let hn_off = rlp_list.offset[8];
+    for i in 0..8
+    {
+        let j = i + hn_padding as Field;
+        
+        if (j as u32) < 8
+        {
+            header_number[j] = block_header[hn_off + i];
+        }
+    }
+
+    let block_number_bytes = (block_number as Field).to_be_bytes(8);
+
+    for i in 0..8
+    {
+        assert(block_number_bytes[i] == header_number[i]);
     }
 
     // Check hash
@@ -151,7 +174,11 @@ fn test_block_hash_verifier()
 {
     let block_header = [249, 2, 29, 160, 37, 13, 13, 88, 122, 39, 89, 216, 57, 189, 191, 68, 193, 112, 34, 113, 58, 133, 74, 115, 177, 61, 67, 247, 132, 53, 149, 16, 96, 117, 222, 94, 160, 29, 204, 77, 232, 222, 199, 93, 122, 171, 133, 181, 103, 182, 204, 212, 26, 211, 18, 69, 27, 148, 138, 116, 19, 240, 161, 66, 253, 64, 212, 147, 71, 148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 22, 217, 46, 53, 217, 138, 10, 227, 30, 100, 200, 81, 190, 85, 145, 108, 254, 87, 198, 108, 86, 43, 89, 107, 243, 146, 97, 82, 196, 113, 144, 5, 160, 169, 19, 33, 153, 33, 83, 97, 150, 130, 9, 201, 249, 128, 150, 36, 178, 129, 104, 209, 198, 44, 32, 243, 163, 103, 250, 0, 23, 65, 119, 40, 63, 160, 0, 190, 130, 62, 23, 126, 4, 105, 51, 91, 103, 24, 117, 110, 122, 189, 235, 19, 9, 4, 208, 41, 110, 250, 209, 51, 0, 167, 122, 241, 134, 78, 185, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 1, 131, 102, 145, 183, 131, 18, 122, 175, 132, 100, 174, 225, 215, 128, 160, 20, 119, 166, 56, 74, 55, 218, 186, 216, 52, 240, 74, 126, 155, 35, 172, 245, 168, 82, 134, 247, 202, 115, 87, 82, 72, 233, 129, 92, 136, 2, 147, 136, 0, 0, 0, 0, 0, 0, 0, 0, 132, 52, 39, 112, 192, 160, 86, 232, 31, 23, 27, 204, 85, 166, 255, 131, 69, 230, 146, 192, 248, 110, 91, 72, 224, 27, 153, 108, 173, 192, 1, 98, 47, 181, 227, 99, 180, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let block_hash = [61, 154, 163, 164, 36, 23, 186, 77, 196, 192, 21, 95, 224, 26, 97, 22, 49, 231, 114, 231, 167, 13, 124, 67, 214, 181, 37, 76, 223, 200, 25, 156];
+    let block_number = 1;
     let state_root = [22, 217, 46, 53, 217, 138, 10, 227, 30, 100, 200, 81, 190, 85, 145, 108, 254, 87, 198, 108, 86, 43, 89, 107, 243, 146, 97, 82, 196, 113, 144, 5];
+    let rlp_list: rlp::RLP_List<17> = rlp::decode1(block_header);
+    dep::std::println(rlp_list.length);
+    dep::std::println(rlp_list.offset);
 
-    assert(check_block(block_hash, block_header) == state_root);
+    assert(check_block(block_hash, block_number, block_header) == state_root);
 }

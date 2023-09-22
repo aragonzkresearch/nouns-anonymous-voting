@@ -1,6 +1,6 @@
 use ark_ff::{BigInteger, PrimeField};
 use babyjubjub_ark::Signature;
-use ethers::types::{Address, StorageProof, H256};
+use ethers::types::{Address, StorageProof, H256, U64};
 use toml::Value;
 
 use crate::noir::{
@@ -18,6 +18,7 @@ impl TomlSerializable for BlockHashVerifierInput {
         let mut toml_map = toml::map::Map::new();
 
         toml_map.insert("block_hash".to_string(), self.block_hash.toml());
+        toml_map.insert("block_number".to_string(), self.block_number.toml());
         toml_map.insert("block_header".to_string(), self.block_header.toml());
         toml_map.insert("registry_address".to_string(), self.registry_address.toml());
         toml_map.insert(
@@ -250,6 +251,12 @@ impl TomlSerializable for H256 {
         let self_l = BN254_Fr::from_be_bytes_mod_order(&self_bytes[0..16]);
         let self_r = BN254_Fr::from_be_bytes_mod_order(&self_bytes[16..]);
         vec![self_l, self_r].toml()
+    }
+}
+
+impl TomlSerializable for U64 {
+    fn toml(self) -> Value {
+        Value::String(format!("0x{:02x}", self.as_u64()))
     }
 }
 

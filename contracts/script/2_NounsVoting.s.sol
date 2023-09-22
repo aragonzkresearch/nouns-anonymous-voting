@@ -55,11 +55,8 @@ contract NounsVotingDeployScript is Script {
         );
 
         ZKRegistry zkRegistry = new ZKRegistry();
-	// TODO
 	INoirVerifier noirHashVerifier = new HashVerifier();
-        // TODO - Deploy Correct Noir Vote Verifier
         INoirVerifier noirVoteVerifier = new VoteVerifier();
-        // TODO - Deploy Correct Noir Tally Verifier
         INoirVerifier noirTallyVerifier = new TallyVerifier();
         PoseidonFactory poseidonFactory = new PoseidonFactory();
 

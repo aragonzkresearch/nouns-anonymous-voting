@@ -239,6 +239,7 @@ pub async fn create_process(
         move || {
             nouns_protocol::noir::prove_block_hash(BlockHashVerifierInput {
                 block_hash,
+                block_number: census_block_number,
                 block_header,
                 registry_address: zk_registry_address,
                 registry_state_proof: zk_registry_state_proof,
@@ -571,8 +572,6 @@ pub async fn tally(
                                 e
                             )
                         })?;
-                    // Fetch LOE data, triggering computation of the private key.
-                    tlcs::fetch_loe_data(round_number).await?;
                     // Wait for private key computation
                     let mut priv_key: Result<String, String> = Err("The TLCS private key cannot be obtained.".to_string());
                     for _i in 0..10
@@ -1031,10 +1030,10 @@ pub(crate) mod tlcs {
     use std::thread;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    const NEW_ROUND_API: &str = "https://demo.timelock.zone/newround/";
-    const LOE_DATA_API: &str = "https://demo.timelock.zone/loedata/";
-    const KEYPAIR_API: &str = "https://api.timelock.zone/azkr/tlcs/v1beta1/keypairs/round/";
+    const NEW_ROUND_API: &str = "https://demo.timelock.zone/keypair/";
+    const KEYPAIR_API: &str = "https://api.timelock.zone/tlcs/timelock/v1beta1/keypairs/round/";
     pub(crate) const LOE_DELAY: u64 = 10000;
+    pub(crate) const PUBKEY_DELAY: u64 = 1;
 
     #[derive(Serialize, Deserialize, Debug)]
     struct Keypairs {
@@ -1045,6 +1044,8 @@ pub(crate) mod tlcs {
     struct Roundkeypair {
         round: u64,
         scheme: u64,
+        id: u64,
+        pubkey_time: u64,
         public_key: String,
         private_key: String,
     }
@@ -1071,8 +1072,9 @@ pub(crate) mod tlcs {
         let round_number = (t + start_delay + process_duration) / 3;
 
         // Send request for public/private key pair for particular round number
-        // TODO: Parse at least some of the body.
-        reqwest::get(NEW_ROUND_API.to_string() + &round_number.to_string())
+        // TODO: Parse at least some of the body and handle errors.
+        let pubkey_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + PUBKEY_DELAY;
+        reqwest::get(NEW_ROUND_API.to_string() + &round_number.to_string() + "/" + &pubkey_time.to_string())
             .await
             .map_err(|e| format!("{:?}", e))?
             .text()
@@ -1082,19 +1084,19 @@ pub(crate) mod tlcs {
         Ok(round_number)
     }
 
-    /// This function fetches LOE data, which is required for computing the TLCS private key (server side).
-    pub(crate) async fn fetch_loe_data(
-        round_number: u64
-    ) -> Result<(), String> {
-        reqwest::get(LOE_DATA_API.to_string() + &round_number.to_string())
-            .await
-            .map_err(|e| format!("{:?}", e))?
-            .text()
-            .await
-            .map_err(|e| format!("{:?}", e))?;
+    // /// This function fetches LOE data, which is required for computing the TLCS private key (server side).
+    // pub(crate) async fn fetch_loe_data(
+    //     round_number: u64
+    // ) -> Result<(), String> {
+    //     reqwest::get(LOE_DATA_API.to_string() + &round_number.to_string())
+    //         .await
+    //         .map_err(|e| format!("{:?}", e))?
+    //         .text()
+    //         .await
+    //         .map_err(|e| format!("{:?}", e))?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// This function fetches the TLCS keypair as strings.
     pub(crate) async fn get_bjj_keypair_strings(

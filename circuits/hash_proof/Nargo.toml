@@ -5,4 +5,4 @@ authors = [""]
 compiler_version = "0.7.1"
 
 [dependencies]
-trie = { tag = "main", git = "https://github.com/aragonzkresearch/noir-trie-proofs" }
+trie = { git = "https://github.com/aragonzkresearch/noir-trie-proofs", tag = "main", directory = "lib" }

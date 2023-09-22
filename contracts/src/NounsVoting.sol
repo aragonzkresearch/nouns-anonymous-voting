@@ -124,6 +124,7 @@ contract NounsVoting {
 
 	// Form verifier argument
 	_push_u256(census_block_hash);
+	_push_uint256(uint256(census_block_number));
 	_push_address(address(zkRegistry));
 	_push_u256(registry_storage_root);
 	_push_address(address(nounsToken));

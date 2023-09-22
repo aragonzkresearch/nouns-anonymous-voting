@@ -220,7 +220,10 @@ fn verify_vote<MAX_PROOF_SIZE>(vote: VoteProverInput<MAX_PROOF_SIZE>)
         };
 
         // Check that it is the one in the proof
-        assert(calculated_delegation_key == vote.delegation_proof.key);
+        for i in 0..vote.delegation_proof.key.len()
+        {
+            assert(calculated_delegation_key[i] == vote.delegation_proof.key[i]);
+        }
 
         // Verify the storage proof
         assert(vote.delegation_proof.verify_storage_root(u256_from_fields(vote.nft_account_state)));

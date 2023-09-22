@@ -1,5 +1,5 @@
 use babyjubjub_ark::Signature;
-use ethers::types::{Address, StorageProof, H256};
+use ethers::types::{Address, StorageProof, H256, U64};
 use std::io::{Error, ErrorKind};
 
 use crate::{utils::VoteChoice, BBJJ_Ec, BBJJ_Fr, BN254_Fr, BlockHeader, StateProof};
@@ -21,6 +21,7 @@ pub const MAX_DEPTH: usize = 8; // For technical reasons, we need a fixed maximu
 /// Input to the Noir block hash checker
 pub struct BlockHashVerifierInput {
     pub block_hash: H256,
+    pub block_number: U64,
     pub block_header: BlockHeader,
     pub registry_address: Address,
     pub registry_state_proof: StateProof,
@@ -171,12 +172,10 @@ pub fn run_singleton_noir_project(
     std::fs::write(prover_toml_path, prover_toml_string)?;
 
     // Generate proof
-    let prove_cmd_stderr = String::from_utf8(std::process::Command::new("nargo")
+    std::process::Command::new("nargo")
         .current_dir(&tmp_dir.path())
-        .arg("prove")
-        .output()?.stderr).expect("String conversion error");
-    if !prove_cmd_stderr.is_empty() { return Err(Error::new(ErrorKind::Other, prove_cmd_stderr)); }
-
+        .arg("prove").output()?;
+    
     // Read proof
     let proof_string = std::fs::read_to_string(
         &tmp_dir
